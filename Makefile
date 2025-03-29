@@ -46,7 +46,7 @@ DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 rwildcard = $(wildcard $(addprefix $1/*.,$2)) $(foreach d,$(wildcard $1/*),$(call rwildcard,$d,$2))
 
 #Source list
-SRCS = $(call rwildcard, src, c)
+SRCS = $(call rwildcard, src, c) $(call rwildcard, src, cpp) 
 
 #Object files list
 OBJS = $(addprefix $(OUTPUT_DIR)/,$(addsuffix .o, $(basename $(SRCS))))
