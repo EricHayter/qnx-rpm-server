@@ -20,7 +20,6 @@ LD = $(CC)
 
 #INCLUDES += -I/path/to/my/lib/include
 #INCLUDES += -I../mylib/public
-INCLUDES += -I/sqlite_odr/include
 
 #LIBS += -L/path/to/my/lib/$(PLATFORM)/usr/lib -lmylib
 #LIBS += -L../mylib/$(OUTPUT_DIR) -lmylib
