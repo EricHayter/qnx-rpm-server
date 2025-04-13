@@ -1,3 +1,0 @@
-[submodule "build-files"]
-	path = build-files
-	url = https://github.com/qnx-ports/build-files.git
