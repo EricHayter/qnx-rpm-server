@@ -11,19 +11,18 @@ OUTPUT_DIR = build/$(CONFIG_NAME)
 TARGET = $(OUTPUT_DIR)/$(ARTIFACT)
 
 #Compiler definitions
-
 CC = qcc -Vgcc_nto$(PLATFORM)
 CXX = q++ -Vgcc_nto$(PLATFORM)_cxx
-LD = $(CC)
+LD = $(CXX)
 
 #User defined include/preprocessor flags and libraries
-
-#INCLUDES += -I/path/to/my/lib/include
-#INCLUDES += -I../mylib/public
+INCLUDES += -Iinclude
+INCLUDES += -I.
 
 #LIBS += -L/path/to/my/lib/$(PLATFORM)/usr/lib -lmylib
-#LIBS += -L../mylib/$(OUTPUT_DIR) -lmylib
-LIBS += -l login -l socket
+LIBS += -lsocket
+LIBS += -llogin
+LIBS += -ljson
 
 #Compiler flags for build profiles
 CCFLAGS_release += -O2
@@ -34,7 +33,7 @@ CCFLAGS_profile += -g -O0 -finstrument-functions
 LIBS_profile += -lprofilingS
 
 #Generic compiler flags (which include build type flags)
-CCFLAGS_all += -Wall -fmessage-length=0
+CCFLAGS_all += -Wall -fmessage-length=0 -std=c++17
 CCFLAGS_all += $(CCFLAGS_$(BUILD_PROFILE))
 
 #Shared library has to be compiled with -fPIC
@@ -43,26 +42,25 @@ LDFLAGS_all += $(LDFLAGS_$(BUILD_PROFILE))
 LIBS_all += $(LIBS_$(BUILD_PROFILE))
 DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 
-#Macro to expand files recursively: parameters $1 -  directory, $2 - extension, i.e. cpp
-rwildcard = $(wildcard $(addprefix $1/*.,$2)) $(foreach d,$(wildcard $1/*),$(call rwildcard,$d,$2))
+#Source files
+CPP_SRCS = $(wildcard src/*.cpp)
+C_SRCS   = $(wildcard src/*.c) # Keep in case any C files remain or are added
 
-#Source list
-SRCS = $(call rwildcard, src, c) $(call rwildcard, src, cpp) 
+#Object files
+OBJS = $(addprefix $(OUTPUT_DIR)/,$(notdir $(CPP_SRCS:.cpp=.o))) \
+       $(addprefix $(OUTPUT_DIR)/,$(notdir $(C_SRCS:.c=.o)))
 
-#Object files list
-OBJS = $(addprefix $(OUTPUT_DIR)/,$(addsuffix .o, $(basename $(SRCS))))
+#Compiling rules
+$(OUTPUT_DIR)/%.o: src/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
 
-#Compiling rule
-$(OUTPUT_DIR)/%.o: %.c
+$(OUTPUT_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
 
-$(OUTPUT_DIR)/%.o: %.cpp
-	@mkdir -p $(dir $@)
-	$(CXX) -c $(DEPS) -o $@ $(INCLUDES) $<
-
 #Linking rule
-$(TARGET):$(OBJS)
+$(TARGET): $(OBJS)
 	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(OBJS) $(LIBS_all) $(LIBS)
 
 #Rules section for default compilation and linking
