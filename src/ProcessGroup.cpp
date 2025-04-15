@@ -39,7 +39,7 @@ namespace qnx
             process_group_map_.clear();
         }
 
-        int ProcessGroup::createGroup(const std::string &name, int priority, const std::string &description)
+        int ProcessGroup::createGroup(std::string_view name, int priority, std::string_view description)
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
@@ -69,7 +69,7 @@ namespace qnx
             return groups_.erase(group_id) > 0;
         }
 
-        bool ProcessGroup::renameGroup(int group_id, const std::string &new_name)
+        bool ProcessGroup::renameGroup(int group_id, std::string_view new_name)
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
@@ -94,7 +94,7 @@ namespace qnx
             }
 
             // Check if process exists
-            if (!utils::ProcessControl::exists(pid))
+            if (!ProcessControl::exists(pid))
             {
                 return false;
             }
@@ -139,7 +139,7 @@ namespace qnx
             return false;
         }
 
-        int ProcessGroup::getProcessGroup(pid_t pid) const
+        int ProcessGroup::getProcessGroupId(pid_t pid) const
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
@@ -185,7 +185,7 @@ namespace qnx
                 std::set<pid_t> to_remove;
                 for (pid_t pid : group.processes)
                 {
-                    if (!utils::ProcessControl::exists(pid))
+                    if (!ProcessControl::exists(pid))
                     {
                         to_remove.insert(pid);
                         process_group_map_.erase(pid);
@@ -193,7 +193,7 @@ namespace qnx
                     else
                     {
                         // Add current process stats to group totals
-                        auto proc_info = utils::ProcessControl::getProcessInfo(pid);
+                        auto proc_info = ProcessControl::getProcessInfo(pid);
                         if (proc_info)
                         {
                             group.total_cpu_usage += proc_info->cpu_usage;
@@ -202,7 +202,7 @@ namespace qnx
                     }
                 }
 
-                // Remove non-existent processes
+                // Remove dead processes
                 for (pid_t pid : to_remove)
                 {
                     group.processes.erase(pid);

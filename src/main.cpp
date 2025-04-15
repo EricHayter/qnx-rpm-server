@@ -129,7 +129,7 @@ std::string messageHandler(int client_socket, const std::string &message)
         auto &proc_core = qnx::core::ProcessCore::getInstance();
         auto &proc_hist = qnx::history::ProcessHistory::getInstance();
         // ProcessControl is a static utility class, not a singleton
-        // auto &proc_ctrl = qnx::utils::ProcessControl::getInstance();
+        // auto &proc_ctrl = qnx::ProcessControl::getInstance();
 
         // --- Handle Different Request Types ---
         if (req_type == qnx::network::MSG_GET_PROCESSES)
@@ -227,7 +227,7 @@ std::string messageHandler(int client_socket, const std::string &message)
             }
 
             json_encoder_add_int(encoder, "pid", pid);
-            json_encoder_add_bool(encoder, "success", qnx::utils::ProcessControl::suspend(pid));
+            json_encoder_add_bool(encoder, "success", qnx::ProcessControl::suspend(pid));
         }
         else if (req_type == qnx::network::MSG_RESUME_PROCESS)
         {
@@ -241,7 +241,7 @@ std::string messageHandler(int client_socket, const std::string &message)
             }
 
             json_encoder_add_int(encoder, "pid", pid);
-            json_encoder_add_bool(encoder, "success", qnx::utils::ProcessControl::resume(pid));
+            json_encoder_add_bool(encoder, "success", qnx::ProcessControl::resume(pid));
         }
         else if (req_type == qnx::network::MSG_TERMINATE_PROCESS)
         {
@@ -255,7 +255,7 @@ std::string messageHandler(int client_socket, const std::string &message)
             }
 
             json_encoder_add_int(encoder, "pid", pid);
-            json_encoder_add_bool(encoder, "success", qnx::utils::ProcessControl::terminate(pid));
+            json_encoder_add_bool(encoder, "success", qnx::ProcessControl::terminate(pid));
         }
         else if (req_type == qnx::network::MSG_AUTH_LOGIN)
         {

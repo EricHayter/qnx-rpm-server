@@ -111,7 +111,8 @@ namespace Authenticator
 				continue;
 
 			// Generate hash from provided password and compare to stored hash
-			if (generate_hash(password, user_entry->salt) == user_entry->hash)
+			auto generated_hash_opt = generate_hash(password, user_entry->salt);
+			if (generated_hash_opt && *generated_hash_opt == user_entry->hash)
 				return true;
 		}
 		return false;
@@ -126,9 +127,9 @@ namespace Authenticator
 	 *
 	 * @param password The password to hash
 	 * @param salt The salt to use in hashing
-	 * @return The generated hash as a string
+	 * @return An optional containing the generated hash as a string, or std::nullopt on failure.
 	 */
-	std::string generate_hash(std::string_view password, std::string_view salt)
+	std::optional<std::string> generate_hash(std::string_view password, std::string_view salt)
 	{
 		// Convert string_views to C-style strings for crypt()
 		std::string pwd_str(password);
@@ -138,8 +139,8 @@ namespace Authenticator
 		char *result = crypt(pwd_str.c_str(), salt_str.c_str());
 		if (!result)
 		{
-			// Fallback in case crypt fails
-			return std::string();
+			// crypt() failed
+			return std::nullopt;
 		}
 
 		return std::string(result);

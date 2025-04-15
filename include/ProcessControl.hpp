@@ -1,5 +1,4 @@
-#ifndef QNX_UTILS_PROCESS_CONTROL_HPP
-#define QNX_UTILS_PROCESS_CONTROL_HPP
+#pragma once
 
 #include <system_error>
 #include <string>
@@ -24,93 +23,82 @@ namespace qnx
 
 namespace qnx
 {
-    namespace utils
+    /**
+     * @namespace ProcessControl
+     * @brief Utility namespace for process control operations
+     */
+    namespace ProcessControl
     {
+        /**
+         * @brief Send a signal to a process
+         * @param pid Process ID
+         * @param signal Signal number
+         * @return true if successful, false otherwise
+         */
+        bool sendSignal(pid_t pid, int signal);
 
         /**
-         * @class ProcessControl
-         * @brief Utility class for process control operations
+         * @brief Suspend a process
+         * @param pid Process ID
+         * @return true if successful, false otherwise
          */
-        class ProcessControl
-        {
-        public:
-            /**
-             * @brief Send a signal to a process
-             * @param pid Process ID
-             * @param signal Signal number
-             * @return true if successful, false otherwise
-             */
-            static bool sendSignal(pid_t pid, int signal);
+        bool suspend(pid_t pid);
 
-            /**
-             * @brief Suspend a process
-             * @param pid Process ID
-             * @return true if successful, false otherwise
-             */
-            static bool suspend(pid_t pid);
+        /**
+         * @brief Resume a process
+         * @param pid Process ID
+         * @return true if successful, false otherwise
+         */
+        bool resume(pid_t pid);
 
-            /**
-             * @brief Resume a process
-             * @param pid Process ID
-             * @return true if successful, false otherwise
-             */
-            static bool resume(pid_t pid);
+        /**
+         * @brief Terminate a process
+         * @param pid Process ID
+         * @return true if successful, false otherwise
+         */
+        bool terminate(pid_t pid);
 
-            /**
-             * @brief Terminate a process
-             * @param pid Process ID
-             * @return true if successful, false otherwise
-             */
-            static bool terminate(pid_t pid);
+        /**
+         * @brief Check if a process exists
+         * @param pid Process ID
+         * @return true if process exists, false otherwise
+         */
+        bool exists(pid_t pid);
 
-            /**
-             * @brief Check if a process exists
-             * @param pid Process ID
-             * @return true if process exists, false otherwise
-             */
-            static bool exists(pid_t pid);
+        /**
+         * @brief Get the parent process ID
+         * @param pid Process ID
+         * @return Parent PID if available, nullopt otherwise
+         */
+        std::optional<pid_t> getParentPid(pid_t pid);
 
-            /**
-             * @brief Get the parent process ID
-             * @param pid Process ID
-             * @return Parent PID if available, nullopt otherwise
-             */
-            static std::optional<pid_t> getParentPid(pid_t pid);
+        /**
+         * @brief Get child processes
+         * @param pid Process ID
+         * @return Vector of child PIDs
+         */
+        std::vector<pid_t> getChildProcesses(pid_t pid);
 
-            /**
-             * @brief Get child processes
-             * @param pid Process ID
-             * @return Vector of child PIDs
-             */
-            static std::vector<pid_t> getChildProcesses(pid_t pid);
+        /**
+         * @brief Get process command line
+         * @param pid Process ID
+         * @return Command line string if available, empty string otherwise
+         */
+        std::string getCommandLine(pid_t pid);
 
-            /**
-             * @brief Get process command line
-             * @param pid Process ID
-             * @return Command line string if available, empty string otherwise
-             */
-            static std::string getCommandLine(pid_t pid);
+        /**
+         * @brief Get process working directory
+         * @param pid Process ID
+         * @return Working directory path if available, empty string otherwise
+         */
+        std::string getWorkingDirectory(pid_t pid);
 
-            /**
-             * @brief Get process working directory
-             * @param pid Process ID
-             * @return Working directory path if available, empty string otherwise
-             */
-            static std::string getWorkingDirectory(pid_t pid);
-
-            /**
-             * @brief Get process information
-             * @param pid Process ID
-             * @return ProcessInfo structure if available, nullopt otherwise
-             */
-            static std::optional<struct ProcessInfo> getProcessInfo(pid_t pid);
-
-        private:
-            ProcessControl() = delete;
-            ~ProcessControl() = delete;
-            ProcessControl(const ProcessControl &) = delete;
-            ProcessControl &operator=(const ProcessControl &) = delete;
-        };
+        /**
+         * @brief Get process information
+         * @param pid Process ID
+         * @return ProcessInfo structure if available, nullopt otherwise
+         */
+        std::optional<struct ProcessInfo> getProcessInfo(pid_t pid);
 
         /**
          * @struct ProcessInfo
@@ -121,8 +109,5 @@ namespace qnx
             double cpu_usage;
             size_t memory_usage;
         };
-
-    } // namespace utils
+    } // namespace ProcessControl
 } // namespace qnx
-
-#endif /* QNX_UTILS_PROCESS_CONTROL_HPP */

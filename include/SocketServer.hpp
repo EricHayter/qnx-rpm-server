@@ -7,8 +7,7 @@
  * for multiple clients and asynchronous message handling.
  */
 
-#ifndef QNX_NETWORK_SOCKET_SERVER_HPP
-#define QNX_NETWORK_SOCKET_SERVER_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -179,5 +178,3 @@ namespace qnx
 
     } // namespace network
 } // namespace qnx
-
-#endif // QNX_NETWORK_SOCKET_SERVER_HPP

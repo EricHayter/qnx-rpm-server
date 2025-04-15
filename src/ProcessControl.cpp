@@ -18,10 +18,12 @@
 #include <signal.h>
 #include <sys/neutrino.h> // QNX specific header
 #include <sys/procfs.h>   // For procfs_status structures
+#include <sys/syspage.h>
+#include <optional>
 
 namespace qnx
 {
-    namespace utils
+    namespace ProcessControl
     {
         /**
          * @brief Send a signal to a process
@@ -34,7 +36,7 @@ namespace qnx
          * @param signal The signal number to send (e.g., SIGTERM, SIGSTOP)
          * @return true if the signal was sent successfully, false otherwise
          */
-        bool ProcessControl::sendSignal(pid_t pid, int signal)
+        bool sendSignal(pid_t pid, int signal)
         {
             // Use signalkill for QNX
 #ifdef __QNXNTO__
@@ -60,7 +62,7 @@ namespace qnx
          * @param pid The process ID to suspend
          * @return true if the process was suspended successfully, false otherwise
          */
-        bool ProcessControl::suspend(pid_t pid)
+        bool suspend(pid_t pid)
         {
 #ifdef __QNXNTO__
             return sendSignal(pid, SIGSTOP);
@@ -80,7 +82,7 @@ namespace qnx
          * @param pid The process ID to resume
          * @return true if the process was resumed successfully, false otherwise
          */
-        bool ProcessControl::resume(pid_t pid)
+        bool resume(pid_t pid)
         {
 #ifdef __QNXNTO__
             return sendSignal(pid, SIGCONT);
@@ -99,7 +101,7 @@ namespace qnx
          * @param pid The process ID to terminate
          * @return true if the termination signal was sent successfully, false otherwise
          */
-        bool ProcessControl::terminate(pid_t pid)
+        bool terminate(pid_t pid)
         {
             return sendSignal(pid, SIGTERM);
         }
@@ -114,7 +116,7 @@ namespace qnx
          * @param pid The process ID to check
          * @return true if the process exists, false otherwise
          */
-        bool ProcessControl::exists(pid_t pid)
+        bool exists(pid_t pid)
         {
 #ifdef __QNXNTO__
             return SignalKill(0, pid, 0, 0, 0, 0) != -1;
@@ -133,7 +135,7 @@ namespace qnx
          * @param pid The process ID to get the parent for
          * @return The parent process ID if available, std::nullopt otherwise
          */
-        std::optional<pid_t> ProcessControl::getParentPid(pid_t pid)
+        std::optional<pid_t> getParentPid(pid_t pid)
         {
 #ifdef __QNXNTO__
             // First try to get process info which contains parent PID
@@ -182,7 +184,7 @@ namespace qnx
          * @param pid The parent process ID
          * @return A vector containing the PIDs of all child processes
          */
-        std::vector<pid_t> ProcessControl::getChildProcesses(pid_t pid)
+        std::vector<pid_t> getChildProcesses(pid_t pid)
         {
             std::vector<pid_t> children;
 
@@ -238,7 +240,7 @@ namespace qnx
          * @param pid The process ID
          * @return The command line string, or empty string if unavailable
          */
-        std::string ProcessControl::getCommandLine(pid_t pid)
+        std::string getCommandLine(pid_t pid)
         {
             std::stringstream path;
             path << "/proc/" << pid << "/cmdline";
@@ -266,30 +268,43 @@ namespace qnx
          * that relies on the procfs filesystem structure.
          *
          * @param pid The process ID
-         * @return The working directory path, or empty string if unavailable
+         * @return The working directory path if successful, nullopt otherwise
          */
-        std::string ProcessControl::getWorkingDirectory(pid_t pid)
+        std::optional<std::string> getWorkingDirectory(pid_t pid)
         {
 #ifdef __QNXNTO__
-            try
-            {
-                std::stringstream path;
-                path << "/proc/" << pid << "/cwd";
+            std::stringstream path_stream;
+            path_stream << "/proc/" << pid << "/cwd";
+            const std::filesystem::path cwd_path(path_stream.str());
 
-                std::error_code ec;
-                std::filesystem::path cwd_path(path.str());
+            std::error_code ec;
 
-                if (std::filesystem::exists(cwd_path, ec))
-                {
-                    return std::filesystem::read_symlink(cwd_path).string();
+            // Check if the path exists
+            bool exists = std::filesystem::exists(cwd_path, ec);
+            if (ec) {
+                // Log error: Failed to check existence
+                std::cerr << "Error checking existence of " << cwd_path << ": " << ec.message() << std::endl;
+                return {};
+            }
+
+            if (exists) {
+                // Path exists, try to read the symlink
+                std::filesystem::path target_path = std::filesystem::read_symlink(cwd_path, ec);
+                if (ec) {
+                    // Log error: Failed to read symlink
+                     std::cerr << "Error reading symlink " << cwd_path << ": " << ec.message() << std::endl;
+                    return {};
                 }
+                return target_path.string();
+            } else {
+                 // Path does not exist
+                 return {};
             }
-            catch (const std::exception &e)
-            {
-                std::cerr << "Error getting working directory: " << e.what() << std::endl;
-            }
+
+#else // Not QNXNTO
+            // Platform not supported or alternative implementation needed
+            return {};
 #endif
-            return "";
         }
 
         /**
@@ -301,7 +316,7 @@ namespace qnx
          * @param pid The process ID
          * @return ProcessInfo structure with usage data if available, nullopt otherwise
          */
-        std::optional<ProcessInfo> ProcessControl::getProcessInfo(pid_t pid)
+        std::optional<ProcessInfo> getProcessInfo(pid_t pid)
         {
             if (!exists(pid))
             {
@@ -356,6 +371,5 @@ namespace qnx
 
             return std::nullopt;
         }
-
-    } // namespace utils
-} // namespace qnx
+    }
+}

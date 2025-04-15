@@ -7,8 +7,7 @@
  * collective management, and reporting on sets of related processes.
  */
 
-#ifndef QNX_PROCESS_GROUP_HPP
-#define QNX_PROCESS_GROUP_HPP
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -49,8 +48,7 @@ namespace qnx
             /**
              * @brief Default constructor
              */
-            Group() : id(0), name(""), description(""), priority(0),
-                      total_cpu_usage(0.0), total_memory_usage(0) {}
+            Group() = default;
 
             /**
              * @brief Constructor with required fields
@@ -60,7 +58,7 @@ namespace qnx
              * @param group_priority Display priority (lower values appear first)
              * @param group_desc Optional description of the group's purpose
              */
-            Group(int group_id, const std::string &group_name, int group_priority, const std::string &group_desc = "")
+            Group(int group_id, std::string_view group_name, int group_priority, std::string_view group_desc = "")
                 : id(group_id), name(group_name), description(group_desc), priority(group_priority),
                   total_cpu_usage(0.0), total_memory_usage(0) {}
         };
@@ -109,7 +107,7 @@ namespace qnx
              * @param description Optional description of the group's purpose
              * @return The ID of the newly created group, or -1 on failure
              */
-            int createGroup(const std::string &name, int priority, const std::string &description = "");
+            int createGroup(std::string_view name, int priority, std::string_view description = "");
 
             /**
              * @brief Delete an existing process group
@@ -126,7 +124,7 @@ namespace qnx
              * @param new_name New name for the group
              * @return true if the group was successfully renamed, false otherwise
              */
-            bool renameGroup(int group_id, const std::string &new_name);
+            bool renameGroup(int group_id, std::string_view new_name);
 
             /**
              * @brief Add a process to a group
@@ -147,12 +145,12 @@ namespace qnx
             bool removeProcessFromGroup(pid_t pid, int group_id);
 
             /**
-             * @brief Get the group a process belongs to
+             * @brief Get the group ID a process belongs to
              *
              * @param pid Process ID to query
              * @return Group ID the process belongs to, or -1 if not in any group
              */
-            int getProcessGroup(pid_t pid) const;
+            int getProcessGroupId(pid_t pid) const;
 
             /**
              * @brief Get all processes in a group
@@ -219,5 +217,3 @@ namespace qnx
 
     } // namespace process
 } // namespace qnx
-
-#endif // QNX_PROCESS_GROUP_HPP

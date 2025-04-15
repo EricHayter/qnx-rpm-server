@@ -73,13 +73,18 @@ namespace Authenticator
 	 * @brief Generate a password hash using the provided salt
 	 * @param password The plain-text password to hash
 	 * @param salt The salt to use for hashing
-	 * @return A string containing the hashed password
+	 * @return An optional containing the hashed password string if successful,
+	 *         std::nullopt otherwise (e.g., if crypt() fails).
 	 */
-	std::string generate_hash(std::string_view password, std::string_view salt);
+	std::optional<std::string> generate_hash(std::string_view password, std::string_view salt);
 
 	/**
 	 * @brief Generate a new random salt for password hashing
-	 * @return A string containing the generated salt
+	 *
+	 * Creates a salt suitable for use with the crypt() function (SHA-512 with PBKDF2 format).
+	 * Relies on time() and rand() for pseudo-randomness. Does not have internal error checking
+	 * for these functions.
+	 * @return A string containing the generated salt.
 	 */
 	std::string generate_salt();
 }

@@ -8,11 +8,11 @@
  * and visualization in the monitoring interface.
  */
 
-#ifndef QNX_HISTORY_PROCESS_HISTORY_HPP
-#define QNX_HISTORY_PROCESS_HISTORY_HPP
+#pragma once
 
 #include <vector>
-#include <list>
+#include <deque>       // Include deque header
+#include <list>        // Keep list for now, or remove if definitely unused elsewhere
 #include <unordered_map>
 #include <mutex>
 #include <chrono>
@@ -103,8 +103,8 @@ namespace qnx
             ProcessHistory() = default;
             ~ProcessHistory() = default;
 
-            // Using std::list for efficient insertion/deletion at the beginning/end
-            using ProcessData = std::list<HistoryEntry>;
+            // Use std::deque instead of std::list
+            using ProcessData = std::deque<HistoryEntry>;
             std::unordered_map<pid_t, ProcessData> history_data_;
             mutable std::mutex mutex_;
             size_t max_entries_per_process_ = 60;
@@ -113,5 +113,3 @@ namespace qnx
 
     } // namespace history
 } // namespace qnx
-
-#endif // QNX_HISTORY_PROCESS_HISTORY_HPP
