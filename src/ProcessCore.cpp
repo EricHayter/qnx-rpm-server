@@ -64,7 +64,6 @@ namespace qnx
         try
         {
             const std::filesystem::path proc_path("/proc");
-
             if (!std::filesystem::exists(proc_path))
             {
                 throw std::runtime_error("Proc filesystem not found");
@@ -102,7 +101,7 @@ namespace qnx
         catch (const std::exception &e)
         {
             std::cerr << "Error collecting process information: " << e.what() << std::endl;
-            return std::nullopt;
+            return {};
         }
     }
 
