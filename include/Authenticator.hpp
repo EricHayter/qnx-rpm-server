@@ -19,7 +19,7 @@
  * @namespace qnx
  * @brief Contains all authentication-related functionality for the RPM server
  */
-namespace qnx
+namespace qnx::Authentication
 {
 	/**
 	 * @brief Path to the login credentials file (constructed via filesystem::path / operator)
