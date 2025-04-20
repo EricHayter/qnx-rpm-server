@@ -163,7 +163,7 @@ namespace qnx::Authentication
 
 		// Use crypt function from liblogin
 		char *result = crypt(pwd_str.c_str(), salt_str.c_str());
-		if (!result)
+		if (result == nullptr)
 		{
 			// crypt() failed
 			return {};
@@ -184,7 +184,7 @@ namespace qnx::Authentication
 	std::string generate_salt()
 	{
 		constexpr int SALT_LENGTH = 16; // Sufficient for SHA-256/SHA-512
-		const char *const VALID_CHARS = "0123456789"
+		constexpr std::string_view VALID_CHARS = "0123456789"
 										"abcdefghijklmnopqrstuvwxyz"
 										"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 										"./";
