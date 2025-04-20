@@ -74,7 +74,7 @@ void statsUpdateLoop()
             for (const auto &pinfo : process_list)
             {
                 // Call addEntry with individual values
-                proc_hist.addEntry(pinfo.getPid(), pinfo.getCpuUsage(), pinfo.getMemoryUsage());
+                proc_hist.addEntry(pinfo.pid, pinfo.cpu_usage, pinfo.memory_usage);
             }
         }
         else

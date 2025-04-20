@@ -41,52 +41,21 @@ namespace qnx
 
     /**
      * @class ProcessInfo
-     * @brief Class representing process information
+     * @brief Struct representing process information
      */
-    class ProcessInfo
+    struct ProcessInfo
     {
-    public:
-        ProcessInfo();
-        ~ProcessInfo() = default;
-
-        // Getters
-        pid_t getPid() const noexcept { return pid_; }
-        const std::string &getName() const noexcept { return name_; }
-        int getGroupId() const noexcept { return group_id_; }
-        size_t getMemoryUsage() const noexcept { return memory_usage_; }
-        double getCpuUsage() const noexcept { return cpu_usage_; }
-        int getPriority() const noexcept { return priority_; }
-        int getPolicy() const noexcept { return policy_; }
-        int getNumThreads() const noexcept { return num_threads_; }
-        std::chrono::milliseconds getRuntime() const noexcept { return runtime_; }
-        std::chrono::system_clock::time_point getStartTime() const noexcept { return start_time_; }
-        int getState() const noexcept { return state_; }
-
-        // Setters
-        void setPid(pid_t pid) noexcept { pid_ = pid; }
-        void setName(const std::string &name) { name_ = name; }
-        void setGroupId(int id) noexcept { group_id_ = id; }
-        void setMemoryUsage(size_t usage) noexcept { memory_usage_ = usage; }
-        void setCpuUsage(double usage) noexcept { cpu_usage_ = usage; }
-        void setPriority(int priority) noexcept { priority_ = priority; }
-        void setPolicy(int policy) noexcept { policy_ = policy; }
-        void setNumThreads(int threads) noexcept { num_threads_ = threads; }
-        void setRuntime(std::chrono::milliseconds runtime) noexcept { runtime_ = runtime; }
-        void setStartTime(std::chrono::system_clock::time_point time) noexcept { start_time_ = time; }
-        void setState(int state) noexcept { state_ = state; }
-
-    private:
-        pid_t pid_;
-        std::string name_;
-        int group_id_;
-        size_t memory_usage_;
-        double cpu_usage_;
-        int priority_;
-        int policy_;
-        int num_threads_;
-        std::chrono::milliseconds runtime_;
-        std::chrono::system_clock::time_point start_time_;
-        int state_;
+        pid_t pid;
+        std::string name;
+        int group_id;
+        size_t memory_usage;
+        double cpu_usage;
+        int priority;
+        int policy;
+        int num_threads;
+        std::chrono::milliseconds runtime_ms;
+        std::chrono::system_clock::time_point start_time{ std::chrono::system_clock::now() };
+        int state;
     };
 
     /**

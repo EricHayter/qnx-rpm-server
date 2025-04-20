@@ -28,13 +28,6 @@
 
 namespace qnx
 {
-    ProcessInfo::ProcessInfo()
-        : pid_(0), group_id_(0), memory_usage_(0), cpu_usage_(0.0), priority_(0), policy_(0), num_threads_(0), runtime_(std::chrono::milliseconds(0)) // initialize duration explicitly
-          ,
-          start_time_(std::chrono::system_clock::now()), state_(0)
-    {
-    }
-
     /**
      * @brief Get the singleton instance of the ProcessCore class
      *
@@ -159,13 +152,13 @@ namespace qnx
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = std::find_if(process_list_.begin(), process_list_.end(),
                                [pid](const ProcessInfo &info)
-                               { return info.getPid() == pid; });
+                               { return info.pid == pid; });
 
         if (it != process_list_.end())
         {
-            return std::optional<ProcessInfo>(*it);
+            return *it;
         }
-        return std::nullopt;
+        return {};
     }
 
     /**
@@ -224,13 +217,13 @@ namespace qnx
         // Print process information
         for (const auto &proc : process_list_)
         {
-            std::cout << std::setw(8) << proc.getPid()
-                      << std::setw(20) << proc.getName()
-                      << std::setw(12) << proc.getMemoryUsage() / 1024
-                      << std::setw(10) << std::fixed << std::setprecision(1) << proc.getCpuUsage()
-                      << std::setw(8) << proc.getNumThreads()
-                      << std::setw(10) << proc.getPriority()
-                      << std::setw(15) << proc.getPolicy()
+            std::cout << std::setw(8) << proc.pid
+                      << std::setw(20) << proc.name
+                      << std::setw(12) << proc.memory_usage / 1024
+                      << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
+                      << std::setw(8) << proc.num_threads
+                      << std::setw(10) << proc.priority
+                      << std::setw(15) << proc.policy
                       << std::endl;
         }
     }
@@ -248,7 +241,7 @@ namespace qnx
      */
     bool ProcessCore::readProcessInfo(pid_t pid, ProcessInfo &info)
     {
-        info.setPid(pid);
+        info.pid = pid;
 
         if (!readProcessStatus(pid, info))
         {
@@ -294,7 +287,7 @@ namespace qnx
         if (as.read(reinterpret_cast<char *>(&aspace), sizeof(aspace)))
         {
             // Use the Resident Set Size (RSS) as memory usage
-            info.setMemoryUsage(aspace.rss / 1024); // Convert to KB
+            info.memory_usage = aspace.rss / 1024; // Convert to KB
             return true;
         }
 
@@ -325,7 +318,7 @@ namespace qnx
             }
         }
 
-        info.setMemoryUsage(memory_usage / 1024); // Convert to KB
+        info.memory_usage = memory_usage / 1024;  // Convert to KB
         return true;                              // Assume success if file opened, even if no "private" found
 #else
         return false;
@@ -378,16 +371,16 @@ namespace qnx
                 {
                     // Calculate CPU usage percentage
                     double usage = static_cast<double>(sutime_delta) / time_delta.count() * 100.0;
-                    info.setCpuUsage(std::max(0.0, std::min(100.0, usage))); // Clamp between 0 and 100
+                    info.cpu_usage = std::max(0.0, std::min(100.0, usage)); // Clamp between 0 and 100
                 }
                 else
                 {
-                    info.setCpuUsage(0.0); // Avoid division by zero
+                    info.cpu_usage = 0.0; // Avoid division by zero
                 }
             }
             else
             {
-                info.setCpuUsage(0.0); // First sample, assume 0 usage
+                info.cpu_usage = 0.0; // First sample, assume 0 usage
             }
 
             // Update last known values
@@ -430,15 +423,15 @@ namespace qnx
         {
             std::cerr << "Error checking existence of " << exe_path << " for PID " << pid << ": " << ec.message() << std::endl;
             // Continue, but use PID as name
-            info.setName(std::to_string(pid));
+            info.name = std::to_string(pid);
         }
         else if (exists)
         {
-            info.setName(exe_path.filename().string());
+            info.name = exe_path.filename().string();
         }
         else
         {
-            info.setName(std::to_string(pid)); // Fallback name
+            info.name = std::to_string(pid); // Fallback name
         }
 
 #ifdef __QNXNTO__
@@ -451,8 +444,8 @@ namespace qnx
             debug_process_t pinfo;
             if (info_file.read(reinterpret_cast<char *>(&pinfo), sizeof(pinfo)))
             {
-                info.setNumThreads(pinfo.num_threads);
-                info.setGroupId(pinfo.pid);
+                info.num_threads = pinfo.num_threads;
+                info.group_id = pinfo.pid;
             }
         }
 
@@ -465,9 +458,9 @@ namespace qnx
             procfs_status pstatus;
             if (status.read(reinterpret_cast<char *>(&pstatus), sizeof(pstatus)))
             {
-                info.setPriority(pstatus.priority);
-                info.setPolicy(pstatus.policy);
-                info.setState(pstatus.state);
+                info.priority = pstatus.priority;
+                info.policy = pstatus.policy;
+                info.state = pstatus.state;
                 return true; // Status read is essential, return true only if successful
             }
             else
