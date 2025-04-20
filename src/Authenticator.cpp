@@ -16,15 +16,14 @@
 #include <fstream>
 #include <string_view>
 #include <charconv>
-#include <numeric>	 // For std::accumulate
-#include <algorithm> // For std::transform
-#include <sstream>	 // For stringstream
-#include <iomanip>	 // For setw, setfill
+#include <iostream> // Added for cerr
+#include <fcntl.h> // For O_RDONLY
+#include <cstdio>  // For perror, fprintf
 
 // Forward declaration for crypt
 extern "C" char *crypt(const char *key, const char *salt);
 
-namespace Authenticator
+namespace qnx
 {
 
 	/**
@@ -91,31 +90,58 @@ namespace Authenticator
 	 * @param password The password to validate
 	 * @return true if credentials match an entry, false otherwise
 	 */
-	bool ValidateLogin(std::string_view username, std::string_view password)
+	std::optional<UserType> ValidateLogin(std::string_view username, std::string_view password)
 	{
 		// Check if the login file exists
-		if (not std::filesystem::exists(LOGIN_FILE))
-			return false;
+		if (!std::filesystem::exists(qnx::LOGIN_FILE))
+		{
+			std::cerr << "Login file not found: " << qnx::LOGIN_FILE << std::endl;
+			return std::nullopt;
+		}
 
 		// Open the login file
-		std::ifstream fstream(LOGIN_FILE);
-		if (not fstream)
-			return false;
+		std::ifstream fstream(qnx::LOGIN_FILE);
+		if (!fstream)
+		{
+			std::cerr << "Failed to open login file: " << qnx::LOGIN_FILE << std::endl;
+			return std::nullopt;
+		}
 
 		// Check each line in the file for matching credentials
 		std::string line;
 		while (std::getline(fstream, line))
 		{
+			// Skip empty lines or lines starting with # (comments)
+			if (line.empty() || line[0] == '#')
+			{
+				continue;
+			}
+
 			auto user_entry = UserEntry::FromString(line);
 			if (not user_entry.has_value())
+			{
+				std::cerr << "Skipping malformed line in login file: " << line << std::endl;
 				continue;
+			}
+
+			// Only compare if usernames match
+			if (user_entry->username != username)
+			{
+				continue;
+			}
 
 			// Generate hash from provided password and compare to stored hash
 			auto generated_hash_opt = generate_hash(password, user_entry->salt);
 			if (generated_hash_opt && *generated_hash_opt == user_entry->hash)
-				return true;
+			{
+				// Found matching user and password: return their type
+				return user_entry->type;
+			}
+			// Username matched but password didn't: authentication fails
+			return std::nullopt;
 		}
-		return false;
+		// Username not found in file
+		return std::nullopt;
 	}
 
 	/**

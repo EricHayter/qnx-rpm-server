@@ -16,18 +16,15 @@
 #include <filesystem>
 
 /**
- * @namespace Authenticator
+ * @namespace qnx
  * @brief Contains all authentication-related functionality for the RPM server
  */
-namespace Authenticator
+namespace qnx
 {
 	/**
-	 * @brief Path to the login credentials file
-	 *
-	 * This file stores user entries in the format:
-	 * username:hash:salt:type
+	 * @brief Path to the login credentials file (constructed via filesystem::path / operator)
 	 */
-	const std::filesystem::path LOGIN_FILE = "/etc/rpm_login";
+	inline static const std::filesystem::path LOGIN_FILE = std::filesystem::path("/etc") / "rpm_login";
 
 	/**
 	 * @enum UserType
@@ -62,12 +59,12 @@ namespace Authenticator
 	};
 
 	/**
-	 * @brief Validate user login credentials
+	 * @brief Authenticate user login credentials
 	 * @param username The username to check
 	 * @param password The password to validate
-	 * @return true if credentials are valid, false otherwise
+	 * @return An optional containing the UserType on success, or std::nullopt if authentication fails
 	 */
-	bool ValidateLogin(std::string_view username, std::string_view password);
+	std::optional<UserType> ValidateLogin(std::string_view username, std::string_view password);
 
 	/**
 	 * @brief Generate a password hash using the provided salt

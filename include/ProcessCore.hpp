@@ -36,7 +36,6 @@
 #endif
 
 namespace qnx {
-namespace core {
 
 /**
  * @class ProcessInfo
@@ -53,7 +52,7 @@ public:
     int getGroupId() const noexcept { return group_id_; }
     size_t getMemoryUsage() const noexcept { return memory_usage_; }
     double getCpuUsage() const noexcept { return cpu_usage_; }
-    unsigned int getPriority() const noexcept { return priority_; }
+    int getPriority() const noexcept { return priority_; }
     int getPolicy() const noexcept { return policy_; }
     int getNumThreads() const noexcept { return num_threads_; }
     std::chrono::milliseconds getRuntime() const noexcept { return runtime_; }
@@ -66,7 +65,7 @@ public:
     void setGroupId(int id) noexcept { group_id_ = id; }
     void setMemoryUsage(size_t usage) noexcept { memory_usage_ = usage; }
     void setCpuUsage(double usage) noexcept { cpu_usage_ = usage; }
-    void setPriority(unsigned int priority) noexcept { priority_ = priority; }
+    void setPriority(int priority) noexcept { priority_ = priority; }
     void setPolicy(int policy) noexcept { policy_ = policy; }
     void setNumThreads(int threads) noexcept { num_threads_ = threads; }
     void setRuntime(std::chrono::milliseconds runtime) noexcept { runtime_ = runtime; }
@@ -79,7 +78,7 @@ private:
     int group_id_;
     size_t memory_usage_;
     double cpu_usage_;
-    unsigned int priority_;
+    int priority_;
     int policy_;
     int num_threads_;
     std::chrono::milliseconds runtime_;
@@ -99,12 +98,10 @@ public:
     ProcessCore(const ProcessCore&) = delete;
     ProcessCore& operator=(const ProcessCore&) = delete;
 
-    // Initialize and shutdown
-    bool init();
-    void shutdown();
+    // Construction and destruction handle setup/teardown automatically
 
     // Process information collection
-    int collectInfo();
+    std::optional<int> collectInfo();
     
     // Process information retrieval
     size_t getCount() const noexcept;
@@ -132,7 +129,6 @@ private:
     std::chrono::system_clock::time_point last_update_time_;
 };
 
-} // namespace core
 } // namespace qnx
 
 #endif /* QNX_PROCESS_CORE_HPP */ 

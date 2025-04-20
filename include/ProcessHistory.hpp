@@ -11,105 +11,76 @@
 #pragma once
 
 #include <vector>
-#include <deque>       // Include deque header
-#include <list>        // Keep list for now, or remove if definitely unused elsewhere
-#include <unordered_map>
+#include <string>
+#include <map>
 #include <mutex>
-#include <chrono>
-#include <optional>
-#include <cstddef>     // For size_t
-#include <sys/types.h> // For pid_t
+#include <deque>
+#include <sys/types.h>
+#include "ProcessControl.hpp"
 
 namespace qnx
 {
-    namespace history
+    struct ProcessHistoryEntry
     {
+        double cpu_usage;
+        long memory_usage;
+        time_t timestamp;
+    };
+
+    class ProcessHistory
+    {
+    public:
+        /**
+         * @brief Get the singleton instance of ProcessHistory.
+         * @return Reference to the singleton instance.
+         */
+        static ProcessHistory &getInstance();
+
+        // Delete copy/move constructors and assignment operators
+        ProcessHistory(const ProcessHistory &) = delete;
+        ProcessHistory &operator=(const ProcessHistory &) = delete;
+        ProcessHistory(ProcessHistory &&) = delete;
+        ProcessHistory &operator=(ProcessHistory &&) = delete;
 
         /**
-         * @struct HistoryEntry
-         * @brief Represents a single data point in a process's history.
+         * @brief Add a new history entry for a specific process.
+         * @param pid The process ID.
+         * @param cpu_usage Current CPU usage.
+         * @param memory_usage Current memory usage.
          */
-        struct HistoryEntry
-        {
-            double cpu_usage = 0.0;
-            size_t memory_usage = 0;
-            std::chrono::system_clock::time_point timestamp;
-
-            HistoryEntry() : timestamp(std::chrono::system_clock::now()) {}
-            HistoryEntry(double cpu, size_t mem)
-                : cpu_usage(cpu), memory_usage(mem), timestamp(std::chrono::system_clock::now()) {}
-        };
+        void addEntry(pid_t pid, double cpu_usage, long memory_usage);
 
         /**
-         * @class ProcessHistory
-         * @brief Manages historical resource usage data for multiple processes.
+         * @brief Retrieve historical entries for a specific process.
+         * @param pid The process ID.
+         * @return A vector containing the requested historical entries, or an empty vector if none exist.
          */
-        class ProcessHistory
-        {
-        public:
-            /**
-             * @brief Get the singleton instance of ProcessHistory.
-             * @return Reference to the singleton instance.
-             */
-            static ProcessHistory &getInstance();
+        std::vector<ProcessHistoryEntry> getHistory(pid_t pid) const;
 
-            // Delete copy/move constructors and assignment operators
-            ProcessHistory(const ProcessHistory &) = delete;
-            ProcessHistory &operator=(const ProcessHistory &) = delete;
-            ProcessHistory(ProcessHistory &&) = delete;
-            ProcessHistory &operator=(ProcessHistory &&) = delete;
+        /**
+         * @brief Retrieve historical entries for all processes.
+         * @return A map containing historical entries for all processes.
+         */
+        std::map<pid_t, std::vector<ProcessHistoryEntry>> getAllHistory() const;
 
-            /**
-             * @brief Initialize the history module.
-             * @param max_entries_per_process Maximum number of historical entries per process.
-             * @param max_tracked_processes Maximum number of processes to track history for.
-             * @return true on success, false otherwise.
-             */
-            bool init(size_t max_entries_per_process = 60, size_t max_tracked_processes = 100);
+        /**
+         * @brief Clear all historical data for a specific process
+         * @param pid The process ID to clear history for
+         */
+        void clearProcessHistory(pid_t pid);
 
-            /**
-             * @brief Shutdown the history module and clear data.
-             */
-            void shutdown();
+        /**
+         * @brief Clear all historical data for all processes
+         */
+        void clearAllHistory();
 
-            /**
-             * @brief Add a new history entry for a specific process.
-             * @param pid The process ID.
-             * @param cpu_usage The current CPU usage.
-             * @param memory_usage The current memory usage (in bytes).
-             */
-            void addEntry(pid_t pid, double cpu_usage, size_t memory_usage);
+    private:
+        ProcessHistory() = default;
+        ~ProcessHistory() = default;
 
-            /**
-             * @brief Retrieve historical entries for a specific process.
-             * @param pid The process ID.
-             * @param count The maximum number of entries to retrieve (most recent first).
-             * @return A vector containing the requested historical entries, or an empty vector if none exist.
-             */
-            std::vector<HistoryEntry> getEntries(pid_t pid, size_t count) const;
-
-            /**
-             * @brief Clear all historical data for a specific process.
-             * @param pid The process ID.
-             */
-            void clearProcessHistory(pid_t pid);
-
-            /**
-             * @brief Clear all historical data for all processes.
-             */
-            void clearAllHistory();
-
-        private:
-            ProcessHistory() = default;
-            ~ProcessHistory() = default;
-
-            // Use std::deque instead of std::list
-            using ProcessData = std::deque<HistoryEntry>;
-            std::unordered_map<pid_t, ProcessData> history_data_;
-            mutable std::mutex mutex_;
-            size_t max_entries_per_process_ = 60;
-            size_t max_tracked_processes_ = 100;
-        };
-
-    } // namespace history
-} // namespace qnx
+        mutable std::mutex mutex_;
+        std::map<pid_t, std::deque<ProcessHistoryEntry>> history_data_;
+        size_t max_entries_per_process_ = 100;
+        size_t max_tracked_processes_ = 1000;
+    };
+}

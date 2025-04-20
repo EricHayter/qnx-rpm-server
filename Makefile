@@ -25,7 +25,7 @@ LIBS += -llogin
 LIBS += -ljson
 
 #Compiler flags for build profiles
-CCFLAGS_release += -O2
+CCFLAGS_release += -O2 -Werror
 CCFLAGS_debug += -g -O0 -fno-builtin
 CCFLAGS_coverage += -g -O0 -ftest-coverage -fprofile-arcs
 LDFLAGS_coverage += -ftest-coverage -fprofile-arcs
@@ -65,6 +65,12 @@ $(TARGET): $(OBJS)
 
 #Rules section for default compilation and linking
 all: $(TARGET)
+
+# Format all C++ and header files using clang-format
+.PHONY: format
+format:
+	@echo "Running clang-format on source files..."
+	@clang-format -i $(wildcard src/*.cpp) $(wildcard include/*.hpp)
 
 clean:
 	rm -fr $(OUTPUT_DIR)
