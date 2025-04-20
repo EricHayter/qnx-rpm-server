@@ -276,28 +276,33 @@ namespace qnx
 
         // Check if the path exists
         bool exists = std::filesystem::exists(cwd_path, ec);
-        if (ec) {
+        if (ec)
+        {
             // Log error: Failed to check existence
             std::cerr << "Error checking existence of " << cwd_path << ": " << ec.message() << std::endl;
             return {};
         }
 
-        if (exists) {
+        if (exists)
+        {
             // Path exists, try to read the symlink
             std::filesystem::path target_path = std::filesystem::read_symlink(cwd_path, ec);
-            if (ec) {
+            if (ec)
+            {
                 // Log error: Failed to read symlink
-                 std::cerr << "Error reading symlink " << cwd_path << ": " << ec.message() << std::endl;
+                std::cerr << "Error reading symlink " << cwd_path << ": " << ec.message() << std::endl;
                 return {};
             }
             return target_path.string();
-        } else {
-             // Path does not exist
-             return {};
+        }
+        else
+        {
+            // Path does not exist
+            return {};
         }
 
 #else // Not QNXNTO
-        // Platform not supported or alternative implementation needed
+      // Platform not supported or alternative implementation needed
         return {};
 #endif
     }
@@ -311,14 +316,14 @@ namespace qnx
      * @param pid The process ID
      * @return ProcessInfo structure with usage data if available, nullopt otherwise
      */
-    std::optional<ProcessInfo> getProcessInfo(pid_t pid)
+    std::optional<BasicProcessInfo> getProcessInfo(pid_t pid)
     {
         if (!exists(pid))
         {
             return std::nullopt;
         }
 
-        ProcessInfo info{0.0, 0};
+        BasicProcessInfo info{0.0, 0};
 
 #ifdef __QNXNTO__
         try
@@ -335,12 +340,14 @@ namespace qnx
                 {
                     info.memory_usage = pstatus.stksize;
                 }
-                else {
-                     std::cerr << "Failed to read /proc/" << pid << "/status for memory info." << std::endl;
+                else
+                {
+                    std::cerr << "Failed to read /proc/" << pid << "/status for memory info." << std::endl;
                 }
             }
-            else {
-                 std::cerr << "Failed to open /proc/" << pid << "/status for memory info." << std::endl;
+            else
+            {
+                std::cerr << "Failed to open /proc/" << pid << "/status for memory info." << std::endl;
             }
 
             // CPU usage is more complex and would require sampling over time

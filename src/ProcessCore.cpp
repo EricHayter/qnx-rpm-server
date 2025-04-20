@@ -29,7 +29,11 @@
 namespace qnx
 {
     ProcessInfo::ProcessInfo()
-        : pid_(0), group_id_(0), memory_usage_(0), cpu_usage_(0.0), priority_(0), policy_(0), num_threads_(0), runtime_(0), start_time_(std::chrono::system_clock::now()), state_(0) {}
+        : pid_(0), group_id_(0), memory_usage_(0), cpu_usage_(0.0), priority_(0), policy_(0), num_threads_(0), runtime_(std::chrono::milliseconds(0)) // initialize duration explicitly
+          ,
+          start_time_(std::chrono::system_clock::now()), state_(0)
+    {
+    }
 
     /**
      * @brief Get the singleton instance of the ProcessCore class
@@ -100,15 +104,12 @@ namespace qnx
                 }
             }
 
-            // Clean up stale entries in last_cpu_times map
-            cleanupStaleCpuTimes(current_pids);
-
-            return static_cast<int>(process_list_.size());
+            return std::optional<int>(static_cast<int>(process_list_.size()));
         }
         catch (const std::exception &e)
         {
             std::cerr << "Error collecting process information: " << e.what() << std::endl;
-            return {};
+            return std::nullopt;
         }
     }
 
@@ -162,7 +163,7 @@ namespace qnx
 
         if (it != process_list_.end())
         {
-            return *it;
+            return std::optional<ProcessInfo>(*it);
         }
         return std::nullopt;
     }
@@ -257,7 +258,7 @@ namespace qnx
 
         // These return bool but don't necessarily invalidate the whole entry
         // Log errors internally if needed
-        readProcessMemory(pid, info); 
+        readProcessMemory(pid, info);
         readProcessCpu(pid, info);
 
         return true;
@@ -325,7 +326,7 @@ namespace qnx
         }
 
         info.setMemoryUsage(memory_usage / 1024); // Convert to KB
-        return true; // Assume success if file opened, even if no "private" found
+        return true;                              // Assume success if file opened, even if no "private" found
 #else
         return false;
 #endif
@@ -381,12 +382,12 @@ namespace qnx
                 }
                 else
                 {
-                     info.setCpuUsage(0.0); // Avoid division by zero
+                    info.setCpuUsage(0.0); // Avoid division by zero
                 }
             }
             else
             {
-                 info.setCpuUsage(0.0); // First sample, assume 0 usage
+                info.setCpuUsage(0.0); // First sample, assume 0 usage
             }
 
             // Update last known values
@@ -476,10 +477,10 @@ namespace qnx
         }
         else
         {
-             std::cerr << "Failed to open /proc/" << pid << "/status." << std::endl;
+            std::cerr << "Failed to open /proc/" << pid << "/status." << std::endl;
         }
 #endif
         // If status read failed or not on QNX
-        return false; 
+        return false;
     }
 } // namespace qnx

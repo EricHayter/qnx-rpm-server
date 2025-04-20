@@ -23,7 +23,7 @@ namespace qnx
 
     // ProcessInfo is now directly in qnx namespace, forward declaration might not be needed
     // if ProcessControl.hpp is included, but safer to keep it if used before include.
-    struct ProcessInfo; 
+    struct ProcessInfo;
 
     /**
      * @struct Group
@@ -34,13 +34,14 @@ namespace qnx
      */
     struct Group
     {
-        int id;                    ///< Unique identifier for the group
-        std::string name;          ///< Display name for the group
-        int priority;              ///< Display priority (lower values appear first)
-        std::string description;   ///< Optional description of the group's purpose
-        std::set<pid_t> processes; ///< Set of process IDs belonging to this group
-        double total_cpu_usage = 0.0;    ///< Sum of CPU usage of all processes in the group
-        long total_memory_usage = 0;      ///< Sum of memory usage of all processes in the group
+        Group() = default;            // default constructor for container use
+        int id;                       ///< Unique identifier for the group
+        std::string name;             ///< Display name for the group
+        int priority;                 ///< Display priority (lower values appear first)
+        std::string description;      ///< Optional description of the group's purpose
+        std::set<pid_t> processes;    ///< Set of process IDs belonging to this group
+        double total_cpu_usage = 0.0; ///< Sum of CPU usage of all processes in the group
+        long total_memory_usage = 0;  ///< Sum of memory usage of all processes in the group
 
         /**
          * @brief Constructor with required fields
@@ -143,7 +144,7 @@ namespace qnx
          * @brief Get all defined group IDs
          * @return A vector of group IDs
          */
-        std::vector<int> getGroupIds() const;  // snapshot of current group IDs
+        std::vector<int> getGroupIds() const; // snapshot of current group IDs
 
         /**
          * @brief Update group statistics
@@ -201,11 +202,13 @@ namespace qnx
     };
 
     // Inline definition of getGroupIds() inside namespace for proper scoping
-    inline std::vector<int> ProcessGroup::getGroupIds() const {
+    inline std::vector<int> ProcessGroup::getGroupIds() const
+    {
         std::lock_guard<std::mutex> guard(mutex_);
         std::vector<int> ids;
         ids.reserve(groups_.size());
-        for (auto const &entry : groups_) {
+        for (auto const &entry : groups_)
+        {
             ids.push_back(entry.first);
         }
         return ids;

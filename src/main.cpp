@@ -31,7 +31,8 @@
 #include <optional>
 #include <sys/json.h> // QNX native JSON library
 
-
+// For chrono literals like 500ms
+using namespace std::chrono_literals;
 
 /**
  * @brief Flag to control the server's main loop
@@ -56,27 +57,31 @@ void signalHandler(int signal)
 void statsUpdateLoop()
 {
     using namespace std::chrono_literals;
-    auto &proc_core = qnx::ProcessCore::getInstance(); // Get ProcessCore instance
+    auto &proc_core = qnx::ProcessCore::getInstance();    // Get ProcessCore instance
     auto &proc_hist = qnx::ProcessHistory::getInstance(); // Get ProcessHistory instance
-    auto &proc_group = qnx::ProcessGroup::getInstance(); // Get ProcessGroup instance
+    auto &proc_group = qnx::ProcessGroup::getInstance();  // Get ProcessGroup instance
 
     while (running.load())
     {
         // Collect fresh process info
-        if (auto count_opt = proc_core.collectInfo()) {
+        if (auto count_opt = proc_core.collectInfo())
+        {
             // Update group statistics (uses qnx::exists and qnx::getProcessInfo internally)
             proc_group.updateGroupStats();
 
             // Update process history
-            const auto& process_list = proc_core.getProcessList();
-            for (const auto& pinfo : process_list) {
+            const auto &process_list = proc_core.getProcessList();
+            for (const auto &pinfo : process_list)
+            {
                 // Call addEntry with individual values
                 proc_hist.addEntry(pinfo.getPid(), pinfo.getCpuUsage(), pinfo.getMemoryUsage());
             }
-        } else {
+        }
+        else
+        {
             std::cerr << "Error collecting process info in stats loop." << std::endl;
         }
-        
+
         // Sleep for the update interval
         std::this_thread::sleep_for(1s); // Use chrono literal
     }
@@ -104,7 +109,8 @@ int main(int argc, char *argv[])
     {
         std::cerr << "Failed to initialize socket server. Exiting." << std::endl;
         running = false; // Signal stats thread to stop
-        if (stats_thread.joinable()) stats_thread.join();
+        if (stats_thread.joinable())
+            stats_thread.join();
         // Singletons auto-cleanup on program exit (no manual shutdown())
         return 1;
     }
@@ -121,9 +127,10 @@ int main(int argc, char *argv[])
 
     // Perform clean shutdown (using updated namespaces)
     qnx::SocketServer::getInstance().shutdown();
-    
+
     // Wait for the stats update thread to finish (ensure running is false)
-    if (stats_thread.joinable()) {
+    if (stats_thread.joinable())
+    {
         stats_thread.join();
     }
 
