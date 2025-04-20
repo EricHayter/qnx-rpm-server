@@ -23,7 +23,7 @@
 // Forward declaration for crypt
 extern "C" char *crypt(const char *key, const char *salt);
 
-namespace qnx
+namespace qnx::Authentication
 {
 
 	/**
@@ -41,32 +41,32 @@ namespace qnx
 		std::size_t field_start = 0;
 		std::size_t field_end = line.find(":");
 		if (field_end == std::string::npos)
-			return std::nullopt;
+			return {};
 		const std::string_view username = line.substr(0, field_end);
 
 		// Extract password hash (field 2)
 		field_start = field_end + 1;
 		field_end = line.find(":", field_start);
 		if (field_end == std::string::npos)
-			return std::nullopt;
+			return {};
 		const std::string_view hash = line.substr(field_start, field_end - field_start);
 
 		// Extract salt (field 3)
 		field_start = field_end + 1;
 		field_end = line.find(":", field_start);
 		if (field_end == std::string::npos)
-			return std::nullopt;
+			return {};
 		const std::string_view salt = line.substr(field_start, field_end - field_start);
 
 		// Extract user type: 0=VIEWER, 1=ADMIN (field 4)
 		field_start = field_end + 1;
 		if (field_end == std::string::npos)
-			return std::nullopt;
+			return {};
 		const std::string_view type_str = line.substr(field_start);
 		int type_value{};
 		std::from_chars(type_str.data(), type_str.data() + type_str.size(), type_value);
 		if (0 > type_value || type_value > 1)
-			return std::nullopt;
+			return {};
 		UserType type = static_cast<UserType>(type_value);
 
 		// Create the UserEntry and return it wrapped in optional
@@ -93,18 +93,18 @@ namespace qnx
 	std::optional<UserType> ValidateLogin(std::string_view username, std::string_view password)
 	{
 		// Check if the login file exists
-		if (!std::filesystem::exists(qnx::LOGIN_FILE))
+		if (!std::filesystem::exists(LOGIN_FILE))
 		{
-			std::cerr << "Login file not found: " << qnx::LOGIN_FILE << std::endl;
-			return std::nullopt;
+			std::cerr << "Login file not found: " << LOGIN_FILE << std::endl;
+			return {};
 		}
 
 		// Open the login file
-		std::ifstream fstream(qnx::LOGIN_FILE);
+		std::ifstream fstream(LOGIN_FILE);
 		if (!fstream)
 		{
-			std::cerr << "Failed to open login file: " << qnx::LOGIN_FILE << std::endl;
-			return std::nullopt;
+			std::cerr << "Failed to open login file: " << LOGIN_FILE << std::endl;
+			return {};
 		}
 
 		// Check each line in the file for matching credentials
@@ -138,10 +138,10 @@ namespace qnx
 				return user_entry->type;
 			}
 			// Username matched but password didn't: authentication fails
-			return std::nullopt;
+			return {};
 		}
 		// Username not found in file
-		return std::nullopt;
+		return {};
 	}
 
 	/**
@@ -153,7 +153,7 @@ namespace qnx
 	 *
 	 * @param password The password to hash
 	 * @param salt The salt to use in hashing
-	 * @return An optional containing the generated hash as a string, or std::nullopt on failure.
+	 * @return An optional containing the generated hash as a string, or {} on failure.
 	 */
 	std::optional<std::string> generate_hash(std::string_view password, std::string_view salt)
 	{
@@ -166,7 +166,7 @@ namespace qnx
 		if (!result)
 		{
 			// crypt() failed
-			return std::nullopt;
+			return {};
 		}
 
 		return std::string(result);
