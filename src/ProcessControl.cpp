@@ -147,7 +147,7 @@ namespace qnx
             debug_process_t pinfo;
             if (info_file.read(reinterpret_cast<char *>(&pinfo), sizeof(pinfo)) && info_file.good())
             {
-                return std::optional<pid_t>{pinfo.parent}; // Explicit construction
+                return pinfo.parent; // Explicit construction
             }
         }
 
@@ -156,7 +156,7 @@ namespace qnx
         std::ifstream status(status_path);
         if (!status)
         {
-            return std::nullopt;
+            return {};
         }
 
         procfs_status pstatus;
@@ -165,10 +165,10 @@ namespace qnx
             // In QNX 8.0, procfs_status is typedef'd to debug_thread_t
             // which doesn't directly contain parent PID
             // We need to read it from process info instead
-            return std::nullopt;
+            return {};
         }
 #endif
-        return std::nullopt;
+        return {};
     }
 
     /**
@@ -320,7 +320,7 @@ namespace qnx
     {
         if (!exists(pid))
         {
-            return std::nullopt;
+            return {};
         }
 
         BasicProcessInfo info{0.0, 0};
@@ -329,10 +329,8 @@ namespace qnx
         try
         {
             // Get memory usage from status
-            std::stringstream status_path;
-            status_path << "/proc/" << pid << "/status";
-
-            std::ifstream status_file(status_path.str());
+            std::filesystem::path status_path = std::filesystem::path("/proc/") / std::to_string(pid) / "/status";
+            std::ifstream status_file(status_path);
             if (status_file)
             {
                 procfs_status pstatus;
@@ -352,10 +350,8 @@ namespace qnx
 
             // CPU usage is more complex and would require sampling over time
             // This implementation provides a simplified version
-            std::stringstream stat_path;
-            stat_path << "/proc/" << pid << "/stat";
-
-            std::ifstream stat_file(stat_path.str());
+            std::filesystem::path stat_path = std::filesystem::path("/proc/") / pid / "/stat";
+            std::ifstream stat_file(stat_path);
             if (stat_file)
             {
                 std::string line;
@@ -367,7 +363,6 @@ namespace qnx
                     info.cpu_usage = 0.5; // Placeholder value
                 }
             }
-
             return info;
         }
         catch (const std::exception &e)
@@ -376,6 +371,6 @@ namespace qnx
         }
 #endif
 
-        return std::nullopt;
+        return {};
     }
 }
