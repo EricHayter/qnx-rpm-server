@@ -350,7 +350,7 @@ namespace qnx
 
             // CPU usage is more complex and would require sampling over time
             // This implementation provides a simplified version
-            std::filesystem::path stat_path = std::filesystem::path("/proc/") / pid / "/stat";
+            std::filesystem::path stat_path = std::filesystem::path("/proc/") / std::to_string(pid) / "/stat";
             std::ifstream stat_file(stat_path);
             if (stat_file)
             {
