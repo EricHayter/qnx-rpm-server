@@ -95,8 +95,7 @@ namespace qnx
                     continue;
                 }
             }
-
-            return std::optional<int>(static_cast<int>(process_list_.size()));
+            return process_list_.size();
         }
         catch (const std::exception &e)
         {
