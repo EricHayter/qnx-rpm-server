@@ -26,6 +26,8 @@
 #include <system_error>
 #include <thread>
 #include <unordered_set>
+#include <fcntl.h>
+#include <devctl.h>
 
 namespace qnx {
 /**
@@ -388,50 +390,50 @@ bool ProcessCore::readProcessStatus(pid_t pid, ProcessInfo &info) {
   std::filesystem::path exe_path(path.str());
 
   // Check existence and handle potential error
-  bool exists = std::filesystem::exists(exe_path, ec);
+  bool exists_exe = std::filesystem::exists(exe_path, ec);
   if (ec) {
     std::cerr << "Error checking existence of " << exe_path << " for PID "
               << pid << ": " << ec.message() << std::endl;
     // Continue, but use PID as name
     info.name = std::to_string(pid);
-  } else if (exists) {
+  } else if (exists_exe) {
     info.name = exe_path.filename().string();
   } else {
     info.name = std::to_string(pid); // Fallback name
   }
 
 #ifdef __QNXNTO__
-  path.str("");
-  path << "/proc/" << pid << "/info";
-
-  std::ifstream info_file(path.str());
-  if (info_file) {
-    debug_process_t pinfo;
-    if (info_file.read(reinterpret_cast<char *>(&pinfo), sizeof(pinfo))) {
-      info.num_threads = pinfo.num_threads;
-      info.group_id = pinfo.pid;
-    }
+  // Open /proc/<pid>/ctl for devctl commands
+  const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
+  int fd = open(ctl_path.c_str(), O_RDONLY);
+  if (fd == -1) {
+    std::cerr << "Failed to open " << ctl_path << ": " << std::strerror(errno)
+              << std::endl;
+    return false;
   }
-
-  path.str("");
-  path << "/proc/" << pid << "/status";
-
-  std::ifstream status(path.str());
-  if (status) {
-    procfs_status pstatus;
-    if (status.read(reinterpret_cast<char *>(&pstatus), sizeof(pstatus))) {
-      info.priority = pstatus.priority;
-      info.policy = pstatus.policy;
-      info.state = pstatus.state;
-      return true; // Status read is essential, return true only if successful
-    } else {
-      std::cerr << "Failed to read /proc/" << pid << "/status." << std::endl;
-    }
+  // Retrieve thread/process info
+  debug_process_t pinfo;
+  if (devctl(fd, DCMD_PROC_INFO, &pinfo, sizeof(pinfo), nullptr) != -1) {
+    info.num_threads = pinfo.num_threads;
+    info.group_id = pinfo.pid;
+  }
+  // Retrieve process status
+  procfs_status pstatus;
+  if (devctl(fd, DCMD_PROC_STATUS, &pstatus, sizeof(pstatus), nullptr) != -1) {
+    info.priority = pstatus.priority;
+    info.policy = pstatus.policy;
+    info.state = pstatus.state;
+    close(fd);
+    return true;
   } else {
-    std::cerr << "Failed to open /proc/" << pid << "/status." << std::endl;
+    std::cerr << "devctl DCMD_PROC_STATUS failed for PID " << pid << ": "
+              << std::strerror(errno) << std::endl;
+    close(fd);
+    return false;
   }
-#endif
-  // If status read failed or not on QNX
+#else
+  // Non-QNX platforms: status not supported
   return false;
+#endif
 }
 } // namespace qnx

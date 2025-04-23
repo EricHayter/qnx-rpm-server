@@ -21,8 +21,12 @@
 #include <sys/neutrino.h> // QNX specific header
 #include <sys/procfs.h>   // For procfs_status structures
 #include <sys/syspage.h>
+#include <devctl.h>      // For devctl()
 #endif
 #include <optional>
+#include <fcntl.h>
+#include <cerrno>
+#include <cstring>
 
 namespace qnx {
 /**
@@ -293,59 +297,32 @@ std::optional<std::string> getWorkingDirectory(pid_t pid) {
  * @brief Get basic process information
  *
  * Collects CPU and memory usage information for a specific process.
- * This information is read from the /proc filesystem on QNX systems.
- *
+ * This information is read via the QNX procfs ctl interface.
  * @param pid The process ID
- * @return ProcessInfo structure with usage data if available, nullopt otherwise
+ * @return BasicProcessInfo structure with usage data if available, nullopt otherwise
  */
 std::optional<BasicProcessInfo> getProcessInfo(pid_t pid) {
-  if (!exists(pid)) {
-    return {};
-  }
-
-  BasicProcessInfo info{0.0, 0};
-
 #ifdef __QNXNTO__
-  try {
-    // Get memory usage from status
-    std::filesystem::path status_path =
-        std::filesystem::path("/proc/") / std::to_string(pid) / "/status";
-    std::ifstream status_file(status_path);
-    if (status_file) {
-      procfs_status pstatus;
-      if (status_file.read(reinterpret_cast<char *>(&pstatus),
-                           sizeof(pstatus)) &&
-          status_file.good()) {
-        info.memory_usage = pstatus.stksize;
-      } else {
-        std::cerr << "Failed to read /proc/" << pid
-                  << "/status for memory info." << std::endl;
-      }
-    } else {
-      std::cerr << "Failed to open /proc/" << pid << "/status for memory info."
-                << std::endl;
+    if (!exists(pid)) {
+        return {};
     }
-
-    // CPU usage is more complex and would require sampling over time
-    // This implementation provides a simplified version
-    std::filesystem::path stat_path =
-        std::filesystem::path("/proc/") / std::to_string(pid) / "/stat";
-    std::ifstream stat_file(stat_path);
-    if (stat_file) {
-      std::string line;
-      if (std::getline(stat_file, line) && !line.empty()) {
-        // Parse CPU statistics (this is a simplified approach)
-        // In a real implementation, we'd need to track usage over time
-        // and calculate percentage based on total system CPU time
-        info.cpu_usage = 0.5; // Placeholder value
-      }
+    const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
+    int fd = open(ctl_path.c_str(), O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "open(" << ctl_path << ") failed: " << std::strerror(errno) << "\n";
+        return {};
     }
+    procfs_status pfs;
+    if (devctl(fd, DCMD_PROC_STATUS, &pfs, sizeof(pfs), nullptr) < 0) {
+        std::cerr << "devctl STATUS failed on " << ctl_path << ": " << std::strerror(errno) << "\n";
+        close(fd);
+        return {};
+    }
+    close(fd);
+    BasicProcessInfo info{0.0, static_cast<long>(pfs.stksize)};
     return info;
-  } catch (const std::exception &e) {
-    std::cerr << "Error getting process info: " << e.what() << std::endl;
-  }
+#else
+    return {};
 #endif
-
-  return {};
 }
 } // namespace qnx
