@@ -13,7 +13,7 @@
  * tracked and the amount of history stored per process.
  */
 
-#include "ProcessHistory.hpp"
+#include "server/ProcessHistory.hpp"
 #include <ctime>
 
 namespace qnx {

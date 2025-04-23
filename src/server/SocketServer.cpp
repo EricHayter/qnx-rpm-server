@@ -15,7 +15,7 @@
  * operations.
  */
 
-#include "SocketServer.hpp"
+#include "server/SocketServer.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cstring>

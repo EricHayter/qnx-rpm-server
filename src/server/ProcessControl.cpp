@@ -9,7 +9,7 @@
  * for non-QNX systems where appropriate.
  */
 
-#include "ProcessControl.hpp"
+#include "server/ProcessControl.hpp"
 #include <cerrno>  // for errno
 #include <chrono>  // For time points and durations
 #include <cstring> // for strerror
