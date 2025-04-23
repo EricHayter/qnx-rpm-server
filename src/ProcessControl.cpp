@@ -10,23 +10,25 @@
  */
 
 #include "ProcessControl.hpp"
+#include <cerrno>  // for errno
+#include <cstring> // for strerror
+#include <fcntl.h> // for open flags
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <signal.h>
 #include <sstream>
+#include <string>
 #include <system_error>
 #include <unistd.h>
+#include <vector>
 #ifdef __QNXNTO__
-#include <sys/neutrino.h> // QNX specific header
-#include <sys/procfs.h>   // For procfs_status structures
+#include <devctl.h> // for devctl
+#include <sys/neutrino.h>
+#include <sys/procfs.h>
 #include <sys/syspage.h>
-#include <devctl.h>      // For devctl()
 #endif
-#include <optional>
-#include <fcntl.h>
-#include <cerrno>
-#include <cstring>
 
 namespace qnx {
 /**
@@ -299,30 +301,33 @@ std::optional<std::string> getWorkingDirectory(pid_t pid) {
  * Collects CPU and memory usage information for a specific process.
  * This information is read via the QNX procfs ctl interface.
  * @param pid The process ID
- * @return BasicProcessInfo structure with usage data if available, nullopt otherwise
+ * @return BasicProcessInfo structure with usage data if available, nullopt
+ * otherwise
  */
 std::optional<BasicProcessInfo> getProcessInfo(pid_t pid) {
 #ifdef __QNXNTO__
-    if (!exists(pid)) {
-        return {};
-    }
-    const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
-    int fd = open(ctl_path.c_str(), O_RDONLY);
-    if (fd < 0) {
-        std::cerr << "open(" << ctl_path << ") failed: " << std::strerror(errno) << "\n";
-        return {};
-    }
-    procfs_status pfs;
-    if (devctl(fd, DCMD_PROC_STATUS, &pfs, sizeof(pfs), nullptr) < 0) {
-        std::cerr << "devctl STATUS failed on " << ctl_path << ": " << std::strerror(errno) << "\n";
-        close(fd);
-        return {};
-    }
-    close(fd);
-    BasicProcessInfo info{0.0, static_cast<long>(pfs.stksize)};
-    return info;
-#else
+  if (!exists(pid)) {
     return {};
+  }
+  const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
+  int fd = open(ctl_path.c_str(), O_RDONLY);
+  if (fd < 0) {
+    std::cerr << "open(" << ctl_path << ") failed: " << std::strerror(errno)
+              << "\n";
+    return {};
+  }
+  procfs_status pfs;
+  if (devctl(fd, DCMD_PROC_STATUS, &pfs, sizeof(pfs), nullptr) < 0) {
+    std::cerr << "devctl STATUS failed on " << ctl_path << ": "
+              << std::strerror(errno) << "\n";
+    close(fd);
+    return {};
+  }
+  close(fd);
+  BasicProcessInfo info{0.0, static_cast<long>(pfs.stksize)};
+  return info;
+#else
+  return {};
 #endif
 }
 } // namespace qnx

@@ -21,13 +21,24 @@
 #include <map>
 #include <optional> // for std::optional
 #include <sstream>
-#include <sys/neutrino.h> // QNX specific header
-#include <sys/procfs.h>   // For procfs_status structures
+#include <string>
 #include <system_error>
 #include <thread>
 #include <unordered_set>
-#include <fcntl.h>
-#include <devctl.h>
+#include <vector>
+
+// POSIX headers for open/close and error reporting
+#include <cerrno>   // for errno
+#include <cstring>  // for strerror()
+#include <fcntl.h>  // for O_RDONLY
+#include <unistd.h> // for open(), close()
+
+#ifdef __QNXNTO__
+#include <devctl.h>       // devctl(), DCMD_PROC_STATUS
+#include <sys/neutrino.h> // QNX-specific
+#include <sys/procfs.h>   // procfs_status
+#include <sys/syspage.h>
+#endif
 
 namespace qnx {
 /**
