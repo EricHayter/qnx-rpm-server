@@ -1,5 +1,5 @@
 #include "server/JsonHandler.hpp"
-#include "server/Authenticator.hpp"
+#include "shared/Authenticator.hpp"
 #include "server/ProcessControl.hpp"
 #include "server/ProcessCore.hpp" // Added for ProcessCore & ProcessInfo
 #include "server/ProcessGroup.hpp"
