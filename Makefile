@@ -20,9 +20,7 @@ INCLUDES += -Iinclude
 INCLUDES += -I.
 
 #LIBS += -L/path/to/my/lib/$(PLATFORM)/usr/lib -lmylib
-LIBS += -lsocket
-LIBS += -llogin
-LIBS += -ljson
+LIBS += -lsocket -llogin -ljson -lstdc++
 
 #Compiler flags for build profiles
 CCFLAGS_release += -O2 -Werror
@@ -64,18 +62,31 @@ $(TARGET): $(OBJS)
 	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(OBJS) $(LIBS_all) $(LIBS)
 
 #Rules section for default compilation and linking
-all: $(TARGET)
+all: $(TARGET) ## Build the main target artifact
 
 # Format all C++ and header files using clang-format
 .PHONY: format
-format:
+format: ## Format source code using clang-format
 	@echo "Running clang-format on source files..."
 	@clang-format -i $(wildcard src/*.cpp) $(wildcard include/*.hpp)
 
-clean:
+clean: ## Remove build artifacts
 	rm -fr $(OUTPUT_DIR)
 
-rebuild: clean all
+rebuild: clean all ## Clean and rebuild the target
+
+.PHONY: upload run help
+upload: $(TARGET) ## Upload the target artifact to the QNX device (root@192.168.153.137)
+	@echo "Uploading $(TARGET) to root@192.168.153.137:~"
+	@sshpass -p "root" scp $(TARGET) root@192.168.153.137:~
+
+run: ## Run the target artifact on the QNX device (root@192.168.153.137)
+	@echo "Running $(ARTIFACT) on root@192.168.153.137"
+	@sshpass -p "root" ssh root@192.168.153.137 "/root/$(ARTIFACT)"
+
+help: ## Display this help message
+	@echo "Available targets:"
+	@awk -F ':|##' '/^[a-zA-Z0-9_-]+:.*##/ { printf "  %-20s %s\n", $$1, $$3 }' $(MAKEFILE_LIST) | sort
 
 #Inclusion of dependencies (object files to source and includes)
 -include $(OBJS:%.o=%.d)
