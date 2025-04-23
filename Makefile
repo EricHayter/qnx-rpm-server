@@ -23,19 +23,19 @@ INCLUDES += -I$(INCLUDE_DIR)
 LIBS += -lsocket -llogin -ljson -lstdc++
 
 #Compiler flags for build profiles
-CCFLAGS_release += -O2 -Werror
-CCFLAGS_debug += -g -O0 -fno-builtin
-CCFLAGS_coverage += -g -O0 -ftest-coverage -fprofile-arcs
+CXXFLAGS_release += -O2 -Werror
+CXXFLAGS_debug += -g -O0 -fno-builtin
+CXXFLAGS_coverage += -g -O0 -ftest-coverage -fprofile-arcs
 LDFLAGS_coverage += -ftest-coverage -fprofile-arcs
-CCFLAGS_profile += -g -O0 -finstrument-functions
+CXXFLAGS_profile += -g -O0 -finstrument-functions
 LIBS_profile += -lprofilingS
 
 #Generic compiler flags (which include build type flags)
-CCFLAGS_all += -Wall -fmessage-length=0 -std=c++17
-CCFLAGS_all += $(CCFLAGS_$(BUILD_PROFILE))
+CXXFLAGS_all += -Wall -fmessage-length=0 -std=c++17
+CXXFLAGS_all += $(CXXFLAGS_$(BUILD_PROFILE))
 
 #Shared library has to be compiled with -fPIC
-#CCFLAGS_all += -fPIC
+#CXXFLAGS_all += -fPIC
 LDFLAGS_all += $(LDFLAGS_$(BUILD_PROFILE))
 LIBS_all += $(LIBS_$(BUILD_PROFILE))
 DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
@@ -53,7 +53,7 @@ SHARED_OBJS = $(addprefix $(OUTPUT_DIR)/, $(SHARED_SRCS:.cpp=.o))
 #Compiling rules
 $(OUTPUT_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
+	$(CXX) -c $(DEPS) -o $@ $(INCLUDES) $(CXXFLAGS_all) $(CXXFLAGS) $<
 
 #Linking rule
 $(TARGET): $(SERVER_OBJS) $(SHARED_OBJS)
