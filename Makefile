@@ -8,16 +8,16 @@ BUILD_PROFILE ?= debug
 
 CONFIG_NAME ?= $(PLATFORM)-$(BUILD_PROFILE)
 OUTPUT_DIR = build/$(CONFIG_NAME)
+SRC_DIR = src
+INCLUDE_DIR = include
 TARGET = $(OUTPUT_DIR)/$(ARTIFACT)
 
 #Compiler definitions
-CC = qcc -Vgcc_nto$(PLATFORM)
 CXX = q++ -Vgcc_nto$(PLATFORM)_cxx
 LD = $(CXX)
 
 #User defined include/preprocessor flags and libraries
-INCLUDES += -Iinclude
-INCLUDES += -I.
+INCLUDES += -I$(INCLUDE_DIR)
 
 #LIBS += -L/path/to/my/lib/$(PLATFORM)/usr/lib -lmylib
 LIBS += -lsocket -llogin -ljson -lstdc++
@@ -41,28 +41,23 @@ LIBS_all += $(LIBS_$(BUILD_PROFILE))
 DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 
 #Source files
-SERVER_SRCS = $(addprefix src/server/, JsonHandler.cpp main.cpp \
-			  ProcessControl.cpp  ProcessCore.cpp  ProcessGroup.cpp \
-			  ProcessHistory.cpp  SocketServer.cpp)
-SERVER_OBJS = $(notdir $(SERVER_SRCS:.cpp=.o))
+SERVER_SRCS = $(addprefix server/, JsonHandler.cpp main.cpp \
+			  ProcessControl.cpp ProcessCore.cpp ProcessGroup.cpp \
+			  ProcessHistory.cpp SocketServer.cpp)
+SERVER_OBJS = $(addprefix $(OUTPUT_DIR)/, $(SERVER_SRCS:.cpp=.o))
 
-SHARED_SRCS = $(addprefix src/shared/, Authenticator.cpp)
-SHARED_OBJS = $(notdir $(SHARED_SRCS:.cpp=.o))
+SHARED_SRCS = $(addprefix shared/, Authenticator.cpp)
+SHARED_OBJS = $(addprefix $(OUTPUT_DIR)/, $(SHARED_SRCS:.cpp=.o))
 
 
 #Compiling rules
-$(OUTPUT_DIR)/%.o: src/%.cpp
+$(OUTPUT_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
 
-$(OUTPUT_DIR)/%.o: src/%.c
-	@mkdir -p $(dir $@)
-	$(CC) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
-
 #Linking rule
 $(TARGET): $(SERVER_OBJS) $(SHARED_OBJS)
-	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(SHARED_OBJS) \ 
-	$(SERVER_OBJS) $(LIBS_all) $(LIBS)
+	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(SHARED_OBJS) $(SERVER_OBJS) $(LIBS_all) $(LIBS)
 
 #Rules section for default compilation and linking
 all: $(TARGET) ## Build the main target artifact
@@ -71,7 +66,7 @@ all: $(TARGET) ## Build the main target artifact
 .PHONY: format
 format: ## Format source code using clang-format
 	@echo "Running clang-format on source files..."
-	@clang-format -i $(wildcard src/*.cpp) $(wildcard include/*.hpp)
+	@clang-format -i $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(INCLUDE_DIR)/*.hpp)
 
 clean: ## Remove build artifacts
 	rm -fr $(OUTPUT_DIR)
