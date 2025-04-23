@@ -11,25 +11,25 @@
  * and handles concurrent client connections.
  */
 
-#include "ProcessCore.hpp"
-#include "ProcessGroup.hpp"
-#include "ProcessControl.hpp"
-#include "SocketServer.hpp"
-#include "ProcessHistory.hpp"
 #include "Authenticator.hpp"
 #include "JsonHandler.hpp" // Include the new handler
+#include "ProcessControl.hpp"
+#include "ProcessCore.hpp"
+#include "ProcessGroup.hpp"
+#include "ProcessHistory.hpp"
+#include "SocketServer.hpp"
 
-#include <iostream>
-#include <thread>
+#include <atomic>
 #include <chrono>
 #include <csignal>
-#include <atomic>
-#include <sstream>
 #include <iomanip> // For std::setw, std::fixed, std::setprecision
-#include <vector>
-#include <string>
+#include <iostream>
 #include <optional>
+#include <sstream>
+#include <string>
 #include <sys/json.h> // QNX native JSON library
+#include <thread>
+#include <vector>
 
 // For chrono literals like 500ms
 using namespace std::chrono_literals;
@@ -42,101 +42,94 @@ std::atomic<bool> running(true);
 /**
  * @brief Signal handler for graceful termination
  */
-void signalHandler(int signal)
-{
-    if (signal == SIGINT || signal == SIGTERM)
-    {
-        std::cout << "\nReceived signal " << signal << ", initiating shutdown..." << std::endl;
-        running = false;
-    }
+void signalHandler(int signal) {
+  if (signal == SIGINT || signal == SIGTERM) {
+    std::cout << "\nReceived signal " << signal << ", initiating shutdown..."
+              << std::endl;
+    running = false;
+  }
 }
 
 /**
  * @brief Background thread for updating process statistics and history
  */
-void statsUpdateLoop()
-{
-    using namespace std::chrono_literals;
-    auto &proc_core = qnx::ProcessCore::getInstance();    // Get ProcessCore instance
-    auto &proc_hist = qnx::ProcessHistory::getInstance(); // Get ProcessHistory instance
-    auto &proc_group = qnx::ProcessGroup::getInstance();  // Get ProcessGroup instance
+void statsUpdateLoop() {
+  using namespace std::chrono_literals;
+  auto &proc_core = qnx::ProcessCore::getInstance(); // Get ProcessCore instance
+  auto &proc_hist =
+      qnx::ProcessHistory::getInstance(); // Get ProcessHistory instance
+  auto &proc_group =
+      qnx::ProcessGroup::getInstance(); // Get ProcessGroup instance
 
-    while (running.load())
-    {
-        // Collect fresh process info
-        if (auto count_opt = proc_core.collectInfo())
-        {
-            // Update group statistics (uses qnx::exists and qnx::getProcessInfo internally)
-            proc_group.updateGroupStats();
+  while (running.load()) {
+    // Collect fresh process info
+    if (auto count_opt = proc_core.collectInfo()) {
+      // Update group statistics (uses qnx::exists and qnx::getProcessInfo
+      // internally)
+      proc_group.updateGroupStats();
 
-            // Update process history
-            const auto &process_list = proc_core.getProcessList();
-            for (const auto &pinfo : process_list)
-            {
-                // Call addEntry with individual values
-                proc_hist.addEntry(pinfo.pid, pinfo.cpu_usage, pinfo.memory_usage);
-            }
-        }
-        else
-        {
-            std::cerr << "Error collecting process info in stats loop." << std::endl;
-        }
-
-        // Sleep for the update interval
-        std::this_thread::sleep_for(1s); // Use chrono literal
+      // Update process history
+      const auto &process_list = proc_core.getProcessList();
+      for (const auto &pinfo : process_list) {
+        // Call addEntry with individual values
+        proc_hist.addEntry(pinfo.pid, pinfo.cpu_usage, pinfo.memory_usage);
+      }
+    } else {
+      std::cerr << "Error collecting process info in stats loop." << std::endl;
     }
-    std::cout << "Stats update loop exiting." << std::endl;
+
+    // Sleep for the update interval
+    std::this_thread::sleep_for(1s); // Use chrono literal
+  }
+  std::cout << "Stats update loop exiting." << std::endl;
 }
 
 /**
  * @brief Main entry point for the application
  */
-int main(int argc, char *argv[])
-{
-    std::cout << "QNX Remote Process Monitor Server Starting..." << std::endl;
+int main(int argc, char *argv[]) {
+  std::cout << "QNX Remote Process Monitor Server Starting..." << std::endl;
 
-    // Setup signal handling
-    signal(SIGINT, signalHandler);
-    signal(SIGTERM, signalHandler);
+  // Setup signal handling
+  signal(SIGINT, signalHandler);
+  signal(SIGTERM, signalHandler);
 
-    // Singletons auto-initialize upon first access (no manual init() needed)
+  // Singletons auto-initialize upon first access (no manual init() needed)
 
-    // Start the background statistics update thread
-    std::thread stats_thread(statsUpdateLoop);
+  // Start the background statistics update thread
+  std::thread stats_thread(statsUpdateLoop);
 
-    // Initialize and start the socket server (using updated namespace and handler)
-    if (!qnx::SocketServer::getInstance().init(8080, qnx::handleMessage))
-    {
-        std::cerr << "Failed to initialize socket server. Exiting." << std::endl;
-        running = false; // Signal stats thread to stop
-        if (stats_thread.joinable())
-            stats_thread.join();
-        // Singletons auto-cleanup on program exit (no manual shutdown())
-        return 1;
-    }
-
-    std::cout << "Server is running. Waiting for connections..." << std::endl;
-
-    // Wait for shutdown signal
-    while (running.load())
-    {
-        std::this_thread::sleep_for(500ms); // Check more often
-    }
-
-    std::cout << "Shutting down server..." << std::endl;
-
-    // Perform clean shutdown (using updated namespaces)
-    qnx::SocketServer::getInstance().shutdown();
-
-    // Wait for the stats update thread to finish (ensure running is false)
+  // Initialize and start the socket server (using updated namespace and
+  // handler)
+  if (!qnx::SocketServer::getInstance().init(8080, qnx::handleMessage)) {
+    std::cerr << "Failed to initialize socket server. Exiting." << std::endl;
+    running = false; // Signal stats thread to stop
     if (stats_thread.joinable())
-    {
-        stats_thread.join();
-    }
-
+      stats_thread.join();
     // Singletons auto-cleanup on program exit (no manual shutdown())
+    return 1;
+  }
 
-    std::cout << "Server shut down successfully." << std::endl;
+  std::cout << "Server is running. Waiting for connections..." << std::endl;
 
-    return 0;
+  // Wait for shutdown signal
+  while (running.load()) {
+    std::this_thread::sleep_for(500ms); // Check more often
+  }
+
+  std::cout << "Shutting down server..." << std::endl;
+
+  // Perform clean shutdown (using updated namespaces)
+  qnx::SocketServer::getInstance().shutdown();
+
+  // Wait for the stats update thread to finish (ensure running is false)
+  if (stats_thread.joinable()) {
+    stats_thread.join();
+  }
+
+  // Singletons auto-cleanup on program exit (no manual shutdown())
+
+  std::cout << "Server shut down successfully." << std::endl;
+
+  return 0;
 }
