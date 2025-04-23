@@ -41,12 +41,14 @@ LIBS_all += $(LIBS_$(BUILD_PROFILE))
 DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 
 #Source files
-CPP_SRCS = $(wildcard src/*.cpp)
-C_SRCS   = $(wildcard src/*.c) # Keep in case any C files remain or are added
+SERVER_SRCS = $(addprefix src/server/, JsonHandler.cpp main.cpp \
+			  ProcessControl.cpp  ProcessCore.cpp  ProcessGroup.cpp \
+			  ProcessHistory.cpp  SocketServer.cpp)
+SERVER_OBJS = $(notdir $(SERVER_SRCS:.cpp=.o))
 
-#Object files
-OBJS = $(addprefix $(OUTPUT_DIR)/,$(notdir $(CPP_SRCS:.cpp=.o))) \
-       $(addprefix $(OUTPUT_DIR)/,$(notdir $(C_SRCS:.c=.o)))
+SHARED_SRCS = $(addprefix src/shared/, Authenticator.cpp)
+SHARED_OBJS = $(notdir $(SHARED_SRCS:.cpp=.o))
+
 
 #Compiling rules
 $(OUTPUT_DIR)/%.o: src/%.cpp
@@ -58,8 +60,9 @@ $(OUTPUT_DIR)/%.o: src/%.c
 	$(CC) -c $(DEPS) -o $@ $(INCLUDES) $(CCFLAGS_all) $(CCFLAGS) $<
 
 #Linking rule
-$(TARGET): $(OBJS)
-	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(OBJS) $(LIBS_all) $(LIBS)
+$(TARGET): $(SERVER_OBJS) $(SHARED_OBJS)
+	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(SHARED_OBJS) \ 
+	$(SERVER_OBJS) $(LIBS_all) $(LIBS)
 
 #Rules section for default compilation and linking
 all: $(TARGET) ## Build the main target artifact
