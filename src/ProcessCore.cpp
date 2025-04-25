@@ -13,6 +13,8 @@
  */
 
 #include "ProcessCore.hpp"
+#include "ProcessControl.hpp"
+#include <chrono> // Added for time points and durations
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -24,6 +26,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <unordered_map> // Added for tracking CPU times
 #include <unordered_set>
 #include <vector>
 
@@ -34,13 +37,25 @@
 #include <unistd.h> // for open(), close()
 
 #ifdef __QNXNTO__
-#include <devctl.h>       // devctl(), DCMD_PROC_STATUS
-#include <sys/neutrino.h> // QNX-specific
-#include <sys/procfs.h>   // procfs_status
+#include <devctl.h>        // devctl(), DCMD_PROC_*
+#include <sys/dcmd_proc.h> // Added for DCMD_PROC_* definitions
+#include <sys/neutrino.h>  // QNX-specific
+#include <sys/procfs.h>    // procfs_status, debug_process_t, debug_thread_t
 #include <sys/syspage.h>
+// Explicitly declare POSIX functions sometimes hidden in C++ on QNX
+extern "C" {
+int open(const char *pathname, int flags, ...);
+int close(int fd);
+}
 #endif
 
 namespace qnx {
+/**
+ * @brief Constructor: Initializes the last update time.
+ */
+ProcessCore::ProcessCore()
+    : last_update_time_(std::chrono::steady_clock::now()) {}
+
 /**
  * @brief Get the singleton instance of the ProcessCore class
  *
@@ -72,6 +87,15 @@ std::optional<int> ProcessCore::collectInfo() {
   process_list_.clear();
   std::unordered_set<pid_t> current_pids;
 
+  // --- CPU Calculation Setup ---
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed_time = now - last_update_time_;
+  // Avoid division by zero or tiny intervals
+  if (elapsed_time < std::chrono::milliseconds{1}) {
+    elapsed_time = std::chrono::milliseconds{1};
+  }
+  // --- End CPU Calculation Setup ---
+
   try {
     const std::filesystem::path proc_path("/proc");
     if (!std::filesystem::exists(proc_path)) {
@@ -91,7 +115,8 @@ std::optional<int> ProcessCore::collectInfo() {
         ProcessInfo info;
         current_pids.insert(pid);
 
-        if (readProcessInfo(pid, info)) {
+        // Pass elapsed time for CPU calculation
+        if (readProcessInfo(pid, info, elapsed_time)) {
           process_list_.push_back(std::move(info));
         }
       } catch (const std::exception &e) {
@@ -100,11 +125,25 @@ std::optional<int> ProcessCore::collectInfo() {
         continue;
       }
     }
-    return process_list_.size();
+    // --- Prune old PIDs from CPU tracking maps ---
+    for (auto it = last_sutimes_.begin(); it != last_sutimes_.end();
+         /* no increment */) {
+      if (current_pids.find(it->first) == current_pids.end()) {
+        it = last_sutimes_.erase(it); // Erase and get next iterator
+      } else {
+        ++it;
+      }
+    }
+    // --- End Pruning ---
+
+    // Update last global update time for next cycle's CPU calculation
+    last_update_time_ = now;
+
+    return std::make_optional(static_cast<int>(process_list_.size()));
   } catch (const std::exception &e) {
     std::cerr << "Error collecting process information: " << e.what()
               << std::endl;
-    return {};
+    return std::nullopt;
   }
 }
 
@@ -157,7 +196,7 @@ ProcessCore::getProcessById(pid_t pid) const noexcept {
                    [pid](const ProcessInfo &info) { return info.pid == pid; });
 
   if (it != process_list_.end()) {
-    return *it;
+    return std::make_optional(*it);
   }
   return {};
 }
@@ -221,30 +260,107 @@ void ProcessCore::displayInfo() const {
 }
 
 /**
- * @brief Read detailed information about a specific process
+ * @brief Read detailed information for a specific process by PID.
  *
- * This method gathers comprehensive information about a process with the given
- * PID. It reads process status, memory usage, and CPU usage information from
- * various files in the /proc filesystem.
+ * This method aggregates information by calling helper functions to read
+ * memory usage and status details (including data needed for CPU calculation).
+ * It then calculates the CPU usage based on the change in `sutime` over the
+ * elapsed time since the last update.
  *
- * @param pid The process ID to read information for
- * @param info The ProcessInfo object to populate with the collected data
- * @return true if information was successfully read, false otherwise
+ * @param pid The process ID to read information for.
+ * @param info Reference to a ProcessInfo struct to populate.
+ * @param elapsed_time The time elapsed since the last global process list
+ * update.
+ * @return true if process information was successfully read, false otherwise.
  */
-bool ProcessCore::readProcessInfo(pid_t pid, ProcessInfo &info) {
-  info.pid = pid;
+bool ProcessCore::readProcessInfo(pid_t pid, ProcessInfo &info,
+                                  std::chrono::duration<double> elapsed_time) {
+#ifdef __QNXNTO__
+  // Get status info (including parent_pid, num_threads, priority, policy,
+  // state, sutime)
+  std::optional<uint64_t> current_sutime_opt = readProcessStatus(pid, info);
 
-  if (!readProcessStatus(pid, info)) {
-    // Error already logged by readProcessStatus
+  if (current_sutime_opt) {
+    // Get the process name separately
+    if (auto path_opt = getProcessExecutablePath(pid)) {
+      info.name = *path_opt;
+    } else {
+      // Fallback or use cmdline?
+      info.name = getCommandLine(pid); // Try cmdline if path fails
+      if (info.name.empty()) {
+        info.name = "N/A"; // Default if both fail
+      } else {
+        // Often cmdline has args, take first part
+        size_t first_space = info.name.find(' ');
+        if (first_space != std::string::npos) {
+          info.name = info.name.substr(0, first_space);
+        }
+      }
+    }
+
+    // Read memory info only if status read was successful
+    if (!readProcessMemory(pid, info)) {
+      // Handle memory read failure? Log? Set memory to 0?
+      info.memory_usage = 0;
+    }
+
+    // --- Calculate CPU Usage ---
+    uint64_t current_sutime = *current_sutime_opt;
+    // Get num_cpu directly from the main syspage structure
+    int num_cpus =
+        _syspage_ptr->num_cpu; // Get number of CPUs directly from syspage
+    double elapsed_nanos =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed_time)
+            .count();
+
+    auto it = last_sutimes_.find(pid);
+    if (it != last_sutimes_.end()) // Check if we have previous data
+    {
+      uint64_t last_sutime = it->second;
+      uint64_t sutime_delta =
+          (current_sutime >= last_sutime)
+              ? (current_sutime - last_sutime)
+              : current_sutime; // Handle potential wraparound or reset? For now
+                                // assume monotonic increase.
+
+      if (elapsed_nanos > 0 && num_cpus > 0) {
+        // CPU% = (change in process time / change in wall time) / num_cpus *
+        // 100
+        info.cpu_usage =
+            (static_cast<double>(sutime_delta) / elapsed_nanos) * 100.0;
+        // Optional: Cap at num_cpus * 100% if needed, though unlikely with
+        // sutime info.cpu_usage = std::min(info.cpu_usage,
+        // static_cast<double>(num_cpus * 100.0));
+      } else {
+        info.cpu_usage = 0.0; // Avoid division by zero
+      }
+    } else {
+      info.cpu_usage =
+          0.0; // First time seeing this process, cannot calculate delta
+    }
+    // Update the last known sutime for this process
+    last_sutimes_[pid] = current_sutime;
+    // --- End CPU Calculation ---
+
+    return true; // Successfully read status and calculated CPU
+  } else {
+    // Status read failed, cannot proceed
+    info.name = "N/A"; // Set default name on status failure
+    info.cpu_usage = 0.0;
+    info.memory_usage = 0;
+    // Ensure PID is removed from tracking if status fails
+    last_sutimes_.erase(pid);
     return false;
   }
 
-  // These return bool but don't necessarily invalidate the whole entry
-  // Log errors internally if needed
-  readProcessMemory(pid, info);
-  readProcessCpu(pid, info);
-
-  return true;
+#else
+  // Non-QNX fallback (if needed)
+  info.name = "N/A";
+  info.cpu_usage = 0.0; // Cannot calculate CPU on non-QNX
+  info.memory_usage = 0;
+  // Basic info population might go here if supported
+  return false; // Indicate incomplete information
+#endif
 }
 
 /**
@@ -312,139 +428,68 @@ bool ProcessCore::readProcessMemory(pid_t pid, ProcessInfo &info) {
 }
 
 /**
- * @brief Read CPU usage information for a specific process
+ * @brief Read process status information using devctl.
  *
- * Calculates CPU usage by reading process status information and comparing
- * with previous measurements. This method tracks CPU time changes over real
- * time to derive a percentage of CPU usage.
+ * Retrieves process metadata like parent PID, name, state, priority, policy,
+ * thread count, and the total system + user time (`sutime`) using QNX's devctl
+ * interface on /proc/<pid>/ctl.
  *
- * @param pid The process ID to read CPU information for
- * @param info The ProcessInfo object to update with CPU usage data
- * @return true if CPU information was successfully read, false otherwise
+ * @param pid The process ID.
+ * @param info Reference to ProcessInfo struct to populate.
+ * @return std::optional<uint64_t> containing the sutime if successful,
+ * std::nullopt otherwise.
  */
-bool ProcessCore::readProcessCpu(pid_t pid, ProcessInfo &info) {
+std::optional<uint64_t> ProcessCore::readProcessStatus(pid_t pid,
+                                                       ProcessInfo &info) {
 #ifdef __QNXNTO__
-  // Map to store previous CPU time readings
-  static std::unordered_map<pid_t, uint64_t> last_sutime_values;
-  static std::unordered_map<pid_t, std::chrono::system_clock::time_point>
-      last_sample_times;
-
-  std::stringstream path;
-  path << "/proc/" << pid << "/status";
-
-  std::ifstream status(path.str());
-  if (!status) {
-    // std::cerr << "Failed to open /proc/" << pid << "/status for CPU: " <<
-    // std::system_category().message(errno) << std::endl;
-    return false;
-  }
-
-  procfs_status pstatus;
-  if (status.read(reinterpret_cast<char *>(&pstatus), sizeof(pstatus))) {
-    auto now = std::chrono::system_clock::now();
-    uint64_t current_sutime =
-        pstatus.sutime; // Assuming sutime is process cumulative CPU time in
-                        // nanoseconds
-
-    auto last_time_it = last_sample_times.find(pid);
-    auto last_sutime_it = last_sutime_values.find(pid);
-
-    if (last_time_it != last_sample_times.end() &&
-        last_sutime_it != last_sutime_values.end()) {
-      auto time_delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-          now - last_time_it->second);
-      uint64_t sutime_delta = current_sutime - last_sutime_it->second;
-
-      if (time_delta.count() > 0) {
-        // Calculate CPU usage percentage
-        double usage =
-            static_cast<double>(sutime_delta) / time_delta.count() * 100.0;
-        info.cpu_usage =
-            std::max(0.0, std::min(100.0, usage)); // Clamp between 0 and 100
-      } else {
-        info.cpu_usage = 0.0; // Avoid division by zero
-      }
-    } else {
-      info.cpu_usage = 0.0; // First sample, assume 0 usage
-    }
-
-    // Update last known values
-    last_sample_times[pid] = now;
-    last_sutime_values[pid] = current_sutime;
-    return true;
-  } else {
-    // std::cerr << "Failed to read status for PID " << pid << " for CPU." <<
-    // std::endl;
-    return false;
-  }
-#else
-  return false;
-#endif
-}
-
-/**
- * @brief Read general status information for a specific process
- *
- * Gathers process name, thread count, group ID, priority, policy, and state
- * information from various files in the /proc filesystem. Sets these values
- * in the provided ProcessInfo object.
- *
- * @param pid The process ID to read status information for
- * @param info The ProcessInfo object to update with status data
- * @return true if status information was successfully read, false otherwise
- */
-bool ProcessCore::readProcessStatus(pid_t pid, ProcessInfo &info) {
-  std::stringstream path;
-  path << "/proc/" << pid << "/exefile";
-
-  std::error_code ec;
-  std::filesystem::path exe_path(path.str());
-
-  // Check existence and handle potential error
-  bool exists_exe = std::filesystem::exists(exe_path, ec);
-  if (ec) {
-    std::cerr << "Error checking existence of " << exe_path << " for PID "
-              << pid << ": " << ec.message() << std::endl;
-    // Continue, but use PID as name
-    info.name = std::to_string(pid);
-  } else if (exists_exe) {
-    info.name = exe_path.filename().string();
-  } else {
-    info.name = std::to_string(pid); // Fallback name
-  }
-
-#ifdef __QNXNTO__
-  // Open /proc/<pid>/ctl for devctl commands
-  const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
-  int fd = open(ctl_path.c_str(), O_RDONLY);
+  std::string ctl_path_str = "/proc/" + std::to_string(pid) + "/ctl";
+  int fd = open(ctl_path_str.c_str(), O_RDONLY);
   if (fd == -1) {
-    std::cerr << "Failed to open " << ctl_path << ": " << std::strerror(errno)
-              << std::endl;
-    return false;
+    // Process might have terminated between listing and opening
+    // std::cerr << "Failed to open " << ctl_path_str << ": " << strerror(errno)
+    // << std::endl;
+    return std::nullopt;
   }
-  // Retrieve thread/process info
-  debug_process_t pinfo;
-  if (devctl(fd, DCMD_PROC_INFO, &pinfo, sizeof(pinfo), nullptr) != -1) {
+
+  uint64_t sutime = 0; // Variable to store sutime
+
+  // Get general process info (path, parent PID, etc.)
+  debug_process_t pinfo = {0}; // Important to zero-initialize
+  if (devctl(fd, DCMD_PROC_INFO, &pinfo, sizeof(pinfo), nullptr) == EOK) {
+    info.pid = pid;
+    info.parent_pid = pinfo.parent;
     info.num_threads = pinfo.num_threads;
-    info.group_id = pinfo.pid;
-  }
-  // Retrieve process status
-  procfs_status pstatus;
-  if (devctl(fd, DCMD_PROC_STATUS, &pstatus, sizeof(pstatus), nullptr) != -1) {
-    info.priority = pstatus.priority;
-    info.policy = pstatus.policy;
-    info.state = pstatus.state;
-    close(fd);
-    return true;
+
+    // Get status of the first thread (TID 1) for priority, policy, state,
+    // sutime
+    procfs_status tinfo = {0}; // This is debug_thread_t in QNX 8.0
+    tinfo.tid = 1;             // Get info for thread 1
+    if (devctl(fd, DCMD_PROC_TIDSTATUS, &tinfo, sizeof(tinfo), nullptr) ==
+        EOK) {
+      info.priority = tinfo.priority;
+      info.policy = tinfo.policy;
+      info.state = tinfo.state; // Store the raw state code
+      sutime = tinfo.sutime;    // Store the sutime
+
+      close(fd);
+      return std::make_optional(sutime); // Success
+    } else {
+      // std::cerr << "Failed devctl DCMD_PROC_TIDSTATUS for PID " << pid << ":
+      // " << strerror(errno) << std::endl;
+    }
   } else {
-    std::cerr << "devctl DCMD_PROC_STATUS failed for PID " << pid << ": "
-              << std::strerror(errno) << std::endl;
-    close(fd);
-    return false;
+    // std::cerr << "Failed devctl DCMD_PROC_INFO for PID " << pid << ": " <<
+    // strerror(errno) << std::endl;
   }
+
+  // If we reach here, something failed
+  close(fd);
+  return std::nullopt;
 #else
-  // Non-QNX platforms: status not supported
-  return false;
+  // Non-QNX implementation placeholder
+  info.pid = pid info.parent_pid = -1;
+  info.num_threads = 0;
+  return std::nullopt; // Cannot get sutime
 #endif
 }
 } // namespace qnx

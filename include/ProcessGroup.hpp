@@ -44,6 +44,7 @@ struct Group {
       0.0; ///< Sum of CPU usage of all processes in the group
   long total_memory_usage =
       0; ///< Sum of memory usage of all processes in the group
+  size_t num_processes = 0; ///< Number of processes currently in the group
 
   /**
    * @brief Constructor with required fields
@@ -55,8 +56,8 @@ struct Group {
    */
   Group(int group_id, std::string_view group_name, int group_priority,
         std::string_view group_desc = "")
-      : id(group_id), name(group_name), priority(group_priority),
-        description(group_desc) {}
+      : id(group_id), name(std::string(group_name)), priority(group_priority),
+        description(std::string(group_desc)) {}
 };
 
 /**

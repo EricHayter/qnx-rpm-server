@@ -1,17 +1,21 @@
 #include "ProcessGroup.hpp"
 #include "ProcessControl.hpp"
+#include "ProcessCore.hpp"
 #include <algorithm>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <optional>
+#include <set>
 
 namespace qnx {
-ProcessGroup &ProcessGroup::getInstance() {
+ProcessGroup &qnx::ProcessGroup::getInstance() {
   static ProcessGroup instance;
   return instance;
 }
 
-int ProcessGroup::createGroup(std::string_view name, int priority,
-                              std::string_view description) {
+int qnx::ProcessGroup::createGroup(std::string_view name, int priority,
+                                   std::string_view description) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   int group_id = next_group_id_++;
@@ -20,7 +24,7 @@ int ProcessGroup::createGroup(std::string_view name, int priority,
   return group_id;
 }
 
-bool ProcessGroup::deleteGroup(int group_id) {
+bool qnx::ProcessGroup::deleteGroup(int group_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = groups_.find(group_id);
@@ -37,7 +41,7 @@ bool ProcessGroup::deleteGroup(int group_id) {
   return groups_.erase(group_id) > 0;
 }
 
-bool ProcessGroup::renameGroup(int group_id, std::string_view new_name) {
+bool qnx::ProcessGroup::renameGroup(int group_id, std::string_view new_name) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = groups_.find(group_id);
@@ -49,7 +53,7 @@ bool ProcessGroup::renameGroup(int group_id, std::string_view new_name) {
   return true;
 }
 
-bool ProcessGroup::addProcessToGroup(pid_t pid, int group_id) {
+bool qnx::ProcessGroup::addProcessToGroup(pid_t pid, int group_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = groups_.find(group_id);
@@ -79,7 +83,7 @@ bool ProcessGroup::addProcessToGroup(pid_t pid, int group_id) {
   return true;
 }
 
-bool ProcessGroup::removeProcessFromGroup(pid_t pid, int group_id) {
+bool qnx::ProcessGroup::removeProcessFromGroup(pid_t pid, int group_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = groups_.find(group_id);
@@ -98,7 +102,7 @@ bool ProcessGroup::removeProcessFromGroup(pid_t pid, int group_id) {
   return false;
 }
 
-int ProcessGroup::getProcessGroupId(pid_t pid) const {
+int qnx::ProcessGroup::getProcessGroupId(pid_t pid) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = process_group_map_.find(pid);
@@ -109,7 +113,7 @@ int ProcessGroup::getProcessGroupId(pid_t pid) const {
   return -1;
 }
 
-std::set<pid_t> ProcessGroup::getProcessesInGroup(int group_id) const {
+std::set<pid_t> qnx::ProcessGroup::getProcessesInGroup(int group_id) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = groups_.find(group_id);
@@ -120,7 +124,7 @@ std::set<pid_t> ProcessGroup::getProcessesInGroup(int group_id) const {
   return std::set<pid_t>();
 }
 
-void ProcessGroup::updateGroupStats() {
+void qnx::ProcessGroup::updateGroupStats() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   // Reset all group stats
@@ -128,6 +132,7 @@ void ProcessGroup::updateGroupStats() {
     Group &group = group_pair.second;
     group.total_cpu_usage = 0.0;
     group.total_memory_usage = 0;
+    group.num_processes = 0;
 
     // Remove any processes that no longer exist
     std::set<pid_t> to_remove;
@@ -139,10 +144,12 @@ void ProcessGroup::updateGroupStats() {
       } else {
         // Add current process stats to group totals
         // Use correct namespace
-        auto proc_info = qnx::getProcessInfo(pid);
-        if (proc_info) {
-          group.total_cpu_usage += proc_info->cpu_usage;
-          group.total_memory_usage += proc_info->memory_usage;
+        auto proc_info_opt = ProcessCore::getInstance().getProcessById(pid);
+        if (proc_info_opt) {
+          const auto &proc_info = *proc_info_opt;
+          group.total_memory_usage += proc_info.memory_usage;
+          group.total_cpu_usage += proc_info.cpu_usage;
+          group.num_processes++;
         }
       }
     }
@@ -152,5 +159,61 @@ void ProcessGroup::updateGroupStats() {
       group.processes.erase(pid);
     }
   }
+}
+
+void qnx::ProcessGroup::displayGroups() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::cout << "--- Process Groups ---" << std::endl;
+  for (const auto &pair : groups_) {
+    const Group &group = pair.second;
+    std::cout << "Group ID: " << group.id << ", Name: " << group.name
+              << ", Priority: " << group.priority
+              << ", Desc: " << group.description
+              << ", Processes: " << group.num_processes
+              << ", CPU: " << std::fixed << std::setprecision(1)
+              << group.total_cpu_usage << "%"
+              << ", Memory: " << group.total_memory_usage / 1024
+              << " KB" // Assuming KB
+              << std::endl;
+    // Optionally print PIDs in the group
+    // std::cout << "  PIDs: ";
+    // for(pid_t pid : group.processes) {
+    //     std::cout << pid << " ";
+    // }
+    // std::cout << std::endl;
+  }
+  std::cout << "----------------------" << std::endl;
+}
+
+void qnx::ProcessGroup::prioritizeGroup(int group_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = groups_.find(group_id);
+  if (it == groups_.end()) {
+    std::cerr << "Error: Cannot prioritize non-existent group " << group_id
+              << std::endl;
+    return;
+  }
+
+  // Example: Set a higher priority (lower number is higher prio in POSIX/QNX)
+  // This is a simplified example; real implementation might involve
+  // iterating through processes and calling ProcessCore::adjustPriority
+  // with appropriate logic based on group membership or policy.
+  int new_base_priority = 10; // Example high priority
+  int policy = SCHED_RR;      // Example policy
+
+  // Silence unused variable warnings for placeholder implementation
+  (void)new_base_priority;
+  (void)policy;
+
+  std::cout << "Prioritizing group " << group_id << " (processes: ";
+  for (pid_t pid : it->second.processes) {
+    std::cout << pid << " ";
+    // Note: Adjusting priority needs careful consideration of permissions and
+    // policy ProcessCore::getInstance().adjustPriority(pid, new_base_priority,
+    // policy);
+  }
+  std::cout << ")" << std::endl;
+  // You might update the group's priority field as well if needed
+  // it->second.priority = some_value_indicating_prioritization;
 }
 } // namespace qnx

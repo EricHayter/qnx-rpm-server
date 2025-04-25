@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -45,16 +46,14 @@ namespace qnx {
  */
 struct ProcessInfo {
   pid_t pid;
+  pid_t parent_pid;
   std::string name;
   int group_id;
-  size_t memory_usage;
+  uint64_t memory_usage;
   double cpu_usage;
   int priority;
   int policy;
   int num_threads;
-  std::chrono::milliseconds runtime_ms;
-  std::chrono::system_clock::time_point start_time{
-      std::chrono::system_clock::now()};
   int state;
 };
 
@@ -87,18 +86,19 @@ public:
   void displayInfo() const;
 
 private:
-  ProcessCore() = default;
+  ProcessCore();
   ~ProcessCore() = default;
 
   // Helper methods
-  bool readProcessInfo(pid_t pid, ProcessInfo &info);
+  bool readProcessInfo(pid_t pid, ProcessInfo &info,
+                       std::chrono::duration<double> elapsed_time);
   bool readProcessMemory(pid_t pid, ProcessInfo &info);
-  bool readProcessCpu(pid_t pid, ProcessInfo &info);
-  bool readProcessStatus(pid_t pid, ProcessInfo &info);
+  std::optional<uint64_t> readProcessStatus(pid_t pid, ProcessInfo &info);
 
   std::vector<ProcessInfo> process_list_;
   mutable std::mutex mutex_;
-  std::chrono::system_clock::time_point last_update_time_;
+  std::chrono::steady_clock::time_point last_update_time_;
+  std::unordered_map<pid_t, uint64_t> last_sutimes_;
 };
 
 } // namespace qnx

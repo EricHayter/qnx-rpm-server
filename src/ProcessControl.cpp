@@ -11,6 +11,7 @@
 
 #include "ProcessControl.hpp"
 #include <cerrno>  // for errno
+#include <chrono>  // For time points and durations
 #include <cstring> // for strerror
 #include <fcntl.h> // for open flags
 #include <filesystem>
@@ -22,12 +23,19 @@
 #include <string>
 #include <system_error>
 #include <unistd.h>
+#include <unordered_map> // For tracking previous CPU times
 #include <vector>
 #ifdef __QNXNTO__
 #include <devctl.h> // for devctl
+#include <sys/dcmd_proc.h>
 #include <sys/neutrino.h>
 #include <sys/procfs.h>
 #include <sys/syspage.h>
+// Explicitly declare POSIX functions sometimes hidden in C++ on QNX
+extern "C" {
+int open(const char *pathname, int flags, ...);
+int close(int fd);
+}
 #endif
 
 namespace qnx {
@@ -147,7 +155,7 @@ std::optional<pid_t> getParentPid(pid_t pid) {
     debug_process_t pinfo;
     if (info_file.read(reinterpret_cast<char *>(&pinfo), sizeof(pinfo)) &&
         info_file.good()) {
-      return pinfo.parent; // Explicit construction
+      return std::optional<pid_t>(pinfo.parent); // Use explicit constructor
     }
   }
 
@@ -283,7 +291,7 @@ std::optional<std::string> getWorkingDirectory(pid_t pid) {
                 << std::endl;
       return {};
     }
-    return target_path.string();
+    return std::make_optional(target_path.string()); // Use make_optional
   } else {
     // Path does not exist
     return {};
@@ -296,38 +304,26 @@ std::optional<std::string> getWorkingDirectory(pid_t pid) {
 }
 
 /**
- * @brief Get basic process information
+ * @brief Get the executable path of a process
  *
- * Collects CPU and memory usage information for a specific process.
- * This information is read via the QNX procfs ctl interface.
+ * Retrieves the executable path of a process by reading the process information
+ * from the /proc filesystem.
+ *
  * @param pid The process ID
- * @return BasicProcessInfo structure with usage data if available, nullopt
- * otherwise
+ * @return The executable path if available, nullopt otherwise
  */
-std::optional<BasicProcessInfo> getProcessInfo(pid_t pid) {
-#ifdef __QNXNTO__
-  if (!exists(pid)) {
+std::optional<std::string> getProcessExecutablePath(pid_t pid) {
+  // Build path via filesystem::path
+  std::filesystem::path path =
+      std::filesystem::path("/proc") / std::to_string(pid) / "path";
+  std::ifstream path_file(path);
+  if (!path_file) {
     return {};
   }
-  const std::string ctl_path = "/proc/" + std::to_string(pid) + "/ctl";
-  int fd = open(ctl_path.c_str(), O_RDONLY);
-  if (fd < 0) {
-    std::cerr << "open(" << ctl_path << ") failed: " << std::strerror(errno)
-              << "\n";
-    return {};
-  }
-  procfs_status pfs;
-  if (devctl(fd, DCMD_PROC_STATUS, &pfs, sizeof(pfs), nullptr) < 0) {
-    std::cerr << "devctl STATUS failed on " << ctl_path << ": "
-              << std::strerror(errno) << "\n";
-    close(fd);
-    return {};
-  }
-  close(fd);
-  BasicProcessInfo info{0.0, static_cast<long>(pfs.stksize)};
-  return info;
-#else
-  return {};
-#endif
+
+  std::string result;
+  std::getline(path_file, result);
+
+  return std::make_optional(result);
 }
 } // namespace qnx
