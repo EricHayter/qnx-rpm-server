@@ -12,9 +12,9 @@
  * gather detailed information about running processes.
  */
 
-#include "ProcessCore.hpp"
-#include "ProcessControl.hpp"
+#include "server/ProcessControl.hpp"
 #include <chrono> // Added for time points and durations
+#include "server/ProcessCore.hpp"
 #include <cstring>
 #include <filesystem>
 #include <fstream>

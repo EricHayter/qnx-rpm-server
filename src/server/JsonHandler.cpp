@@ -1,10 +1,10 @@
-#include "JsonHandler.hpp"
-#include "Authenticator.hpp"
-#include "ProcessControl.hpp"
-#include "ProcessCore.hpp" // Added for ProcessCore & ProcessInfo
-#include "ProcessGroup.hpp"
-#include "ProcessHistory.hpp"
-#include "SocketServer.hpp" // Include for message type constants
+#include "server/JsonHandler.hpp"
+#include "shared/Authenticator.hpp"
+#include "server/ProcessControl.hpp"
+#include "server/ProcessCore.hpp" // Added for ProcessCore & ProcessInfo
+#include "server/ProcessGroup.hpp"
+#include "server/ProcessHistory.hpp"
+#include "server/SocketServer.hpp" // Include for message type constants
 #include <functional>
 #include <iostream>
 #include <map>

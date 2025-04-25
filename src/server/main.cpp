@@ -11,13 +11,13 @@
  * and handles concurrent client connections.
  */
 
-#include "Authenticator.hpp"
-#include "JsonHandler.hpp" // Include the new handler
-#include "ProcessControl.hpp"
-#include "ProcessCore.hpp"
-#include "ProcessGroup.hpp"
-#include "ProcessHistory.hpp"
-#include "SocketServer.hpp"
+#include "shared/Authenticator.hpp"
+#include "server/JsonHandler.hpp" // Include the new handler
+#include "server/ProcessControl.hpp"
+#include "server/ProcessCore.hpp"
+#include "server/ProcessGroup.hpp"
+#include "server/ProcessHistory.hpp"
+#include "server/SocketServer.hpp"
 
 #include <atomic>
 #include <chrono>

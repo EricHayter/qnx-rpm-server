@@ -10,7 +10,7 @@
 
 #define _DEFAULT_SOURCE
 
-#include "Authenticator.hpp"
+#include "shared/Authenticator.hpp"
 
 #include <charconv>
 #include <cstdio> // For perror, fprintf

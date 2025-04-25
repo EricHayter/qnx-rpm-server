@@ -1,6 +1,6 @@
-#include "ProcessGroup.hpp"
-#include "ProcessControl.hpp"
-#include "ProcessCore.hpp"
+#include "server/ProcessGroup.hpp"
+#include "server/ProcessControl.hpp"
+#include "server/ProcessCore.hpp"
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
